@@ -270,6 +270,9 @@ if USE_R2:
     # If bucket is public, we don't need signed URLs.
     AWS_QUERYSTRING_AUTH = os.getenv("AWS_QUERYSTRING_AUTH", "False").lower() in ("1", "true", "yes", "y", "on")
 
+    # Ensure generated URLs use https
+    AWS_S3_URL_PROTOCOL = "https:"
+
     # Keep existing objects when uploading a file with the same name.
     AWS_S3_FILE_OVERWRITE = False
 
@@ -277,34 +280,36 @@ if USE_R2:
     AWS_S3_MULTIPART_CHUNKSIZE = int(os.getenv("AWS_S3_MULTIPART_CHUNKSIZE", str(8 * 1024 * 1024)))  # 8MB
     AWS_S3_MAX_CONCURRENCY = int(os.getenv("AWS_S3_MAX_CONCURRENCY", "5"))
 
-    # Important: When you want images to be VIEWABLE in the browser, use a PUBLIC base URL.
-    # Recommended options (set ONE of these env vars):
-    # - R2_PUBLIC_BASE_URL or AWS_PUBLIC_BASE_URL:  https://<your-custom-domain>
-    # - or your R2 Public Development URL:         https://pub-xxxx.r2.dev
+    # Public URL for serving media (browser-facing)
+    # IMPORTANT:
+    # - AWS_S3_ENDPOINT_URL is the S3 API endpoint (used for uploading).
+    # - AWS_S3_CUSTOM_DOMAIN / MEDIA_URL must point to a PUBLIC URL (used for viewing).
+    #
+    # Set ONE of these env vars on Seenode:
+    #   MEDIA_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev
+    #   or AWS_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev
+    #   or R2_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev
+
     _public_base = (
         os.getenv("R2_PUBLIC_BASE_URL")
         or os.getenv("AWS_PUBLIC_BASE_URL")
         or os.getenv("MEDIA_PUBLIC_BASE_URL")
     )
 
-    if _public_base:
+    # django-storages generates file.url using AWS_S3_CUSTOM_DOMAIN (not MEDIA_URL).
+    # So if you provide a public base URL, we also set AWS_S3_CUSTOM_DOMAIN.
+    AWS_S3_CUSTOM_DOMAIN = os.getenv("AWS_S3_CUSTOM_DOMAIN")
+
+    if not AWS_S3_CUSTOM_DOMAIN and _public_base:
+        AWS_S3_CUSTOM_DOMAIN = _public_base.replace("https://", "").replace("http://", "").rstrip("/")
+
+    if AWS_S3_CUSTOM_DOMAIN:
+        MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/"
+    elif _public_base:
         MEDIA_URL = _public_base.rstrip("/") + "/"
     else:
+        # Last-resort fallback (usually NOT browser-friendly)
         MEDIA_URL = AWS_S3_ENDPOINT_URL.rstrip("/") + f"/{AWS_STORAGE_BUCKET_NAME}/"
-    #     # Fallback to the API endpoint + /<bucket>/ (works only if public access is enabled)
-    #     MEDIA_URL = AWS_S3_ENDPOINT_URL.rstrip("/") + f"/{AWS_STORAGE_BUCKET_NAME}/"
-    # _public_base = os.getenv("MEDIA_PUBLIC_BASE_URL", "").strip()
-
-    # if _public_base:
-    #     MEDIA_URL = _public_base.rstrip("/") + "/"
-    # else:
-    #     # If you don't provide a public base URL, your images won't be viewable in browser.
-    #     # Force a clear error instead of silently using the API endpoint.
-    #     raise RuntimeError(
-    #         "MEDIA_PUBLIC_BASE_URL is not set. "
-    #         "Set it to your Cloudflare R2 Public Development URL (https://pub-xxxx.r2.dev) "
-    #         "or a custom domain (https://media.yourdomain.com)."
-    #     )
 
 else:
     # Local development fallback
