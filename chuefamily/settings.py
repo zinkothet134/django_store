@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'django.contrib.humanize', # Add this line
+    "storages",
     "qrcode",
     "warehouse",
     "category",
