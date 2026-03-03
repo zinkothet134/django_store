@@ -30,9 +30,11 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = os.getenv("DEBUG", "True").lower() in ("1", "true", "yes", "y", "on")
 
 if not SECRET_KEY:
-    # When DEBUG=False, Django will refuse to start without a SECRET_KEY.
-    # This explicit error makes the root cause obvious.
-    raise RuntimeError("SECRET_KEY environment variable is not set")
+    if DEBUG:
+        # Local/dev convenience only. DO NOT rely on this in production.
+        SECRET_KEY = "dev-insecure-secret-key"
+    else:
+        raise RuntimeError("SECRET_KEY environment variable is not set")
 
 ALLOWED_HOSTS = ["*"]
 
@@ -112,12 +114,20 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD", "COcDJHAAWBOgE6wh3D2bQlTc"),
         "HOST": os.getenv("DB_HOST", "up-de-fra1-postgresql-1.db.run-on-seenode.com"),
         "PORT": os.getenv("DB_PORT", "11550"),
-        # Many managed Postgres providers require SSL; leave this on unless your provider says otherwise.
         "OPTIONS": {
+            # Many managed Postgres providers require SSL; leave this on unless your provider says otherwise.
             "sslmode": os.getenv("DB_SSLMODE", "require"),
+            # Fail fast if the DB cannot be reached
+            "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),
+            # Keepalives help prevent proxy/LB idle disconnects
+            "keepalives": 1,
+            "keepalives_idle": int(os.getenv("DB_KEEPALIVES_IDLE", "30")),
+            "keepalives_interval": int(os.getenv("DB_KEEPALIVES_INTERVAL", "10")),
+            "keepalives_count": int(os.getenv("DB_KEEPALIVES_COUNT", "5")),
         },
-        # Helps performance and reduces connection churn
-        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
+        # For reliability on some managed platforms, default to no persistent connections.
+        # If everything is stable, you can increase this (e.g., 60).
+        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "0")),
     }
 }
 
