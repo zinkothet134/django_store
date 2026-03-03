@@ -22,9 +22,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY')
+# In production you MUST set SECRET_KEY in the environment.
+SECRET_KEY = os.getenv("SECRET_KEY")
+
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+# Local default is True; set DEBUG=0/False on the server.
+DEBUG = os.getenv("DEBUG", "True").lower() in ("1", "true", "yes", "y", "on")
+
+if not SECRET_KEY:
+    # When DEBUG=False, Django will refuse to start without a SECRET_KEY.
+    # This explicit error makes the root cause obvious.
+    raise RuntimeError("SECRET_KEY environment variable is not set")
 
 ALLOWED_HOSTS = ["*"]
 
@@ -74,14 +82,30 @@ DATABASES = {
 }
 '''
 #Postgresql
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": os.environ.get('NAME'),
+#         "USER": os.environ.get('USER'),
+#         "PASSWORD": os.environ.get('PASSWORD'),
+#         "HOST": os.environ.get('HOST'),
+#         "PORT": '11550',
+#     }
+# }
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get('NAME'),
-        "USER": os.environ.get('USER'),
-        "PASSWORD": os.environ.get('PASSWORD'),
-        "HOST": os.environ.get('HOST'),
-        "PORT": '11550',
+        "NAME": os.getenv("DB_NAME", "db_nqljjh84al5c"),
+        "USER": os.getenv("DB_USER", "db_nqljjh84al5c"),
+        "PASSWORD": os.getenv("DB_PASSWORD", "COcDJHAAWBOgE6wh3D2bQlTc"),
+        "HOST": os.getenv("DB_HOST", "up-de-fra1-postgresql-1.db.run-on-seenode.com"),
+        "PORT": os.getenv("DB_PORT", "11550"),
+        # Many managed Postgres providers require SSL; leave this on unless your provider says otherwise.
+        "OPTIONS": {
+            "sslmode": os.getenv("DB_SSLMODE", "require"),
+        },
+        # Helps performance and reduces connection churn
+        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "60")),
     }
 }
 
