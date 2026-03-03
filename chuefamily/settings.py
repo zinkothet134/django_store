@@ -214,7 +214,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 
 
-# Cloudflare R2 Storage Configuration
+# Cloudflare R2 (S3-compatible) Storage Configuration
+#
+# This project supports BOTH naming styles for env vars:
+# - R2_*  (R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_ENDPOINT_URL)
+# - AWS_* (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_STORAGE_BUCKET_NAME or AWS_BUCKET_NAME, AWS_S3_ENDPOINT_URL)
+#
+# Seenode: you can use the AWS_* names (recommended) because django-storages expects AWS_*.
 
 USE_R2 = os.getenv("USE_R2", "False").lower() in ("1", "true", "yes", "y", "on")
 
@@ -228,42 +234,64 @@ if USE_R2:
         },
     }
 
-    # Seenode variable name is R2_SECRET_ACCESS_KEY (matches your dashboard)
-    AWS_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
-    AWS_STORAGE_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
+    # Accept either R2_* or AWS_* env var names
+    AWS_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID") or os.getenv("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY") or os.getenv("AWS_SECRET_ACCESS_KEY")
 
-    # Validate required R2 configuration early (so failures are visible in logs)
+    AWS_STORAGE_BUCKET_NAME = (
+        os.getenv("R2_BUCKET_NAME")
+        or os.getenv("AWS_STORAGE_BUCKET_NAME")
+        or os.getenv("AWS_BUCKET_NAME")
+    )
+
+    AWS_S3_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL") or os.getenv("AWS_S3_ENDPOINT_URL")
+
+    # Validate required configuration early (so failures are visible in logs)
     _missing = [
         name for name, val in {
-            "R2_ACCESS_KEY_ID": AWS_ACCESS_KEY_ID,
-            "R2_SECRET_ACCESS_KEY": AWS_SECRET_ACCESS_KEY,
-            "R2_BUCKET_NAME": AWS_STORAGE_BUCKET_NAME,
-            "R2_ENDPOINT_URL": os.getenv("R2_ENDPOINT_URL"),
+            "AWS_ACCESS_KEY_ID": AWS_ACCESS_KEY_ID,
+            "AWS_SECRET_ACCESS_KEY": AWS_SECRET_ACCESS_KEY,
+            "AWS_STORAGE_BUCKET_NAME": AWS_STORAGE_BUCKET_NAME,
+            "AWS_S3_ENDPOINT_URL": AWS_S3_ENDPOINT_URL,
         }.items() if not val
     ]
     if _missing:
-        raise RuntimeError(f"Missing required R2 env var(s): {', '.join(_missing)}")
+        raise RuntimeError(f"Missing required R2/S3 env var(s): {', '.join(_missing)}")
 
-    AWS_S3_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL")
-    AWS_S3_REGION_NAME = "auto"
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "auto")
     AWS_S3_SIGNATURE_VERSION = "s3v4"
-    AWS_S3_ADDRESSING_STYLE = "path"
-    AWS_DEFAULT_ACL = None
-    AWS_QUERYSTRING_AUTH = False
-    AWS_S3_FILE_OVERWRITE = False
-    AWS_S3_MAX_MEMORY_SIZE = int(os.getenv("AWS_S3_MAX_MEMORY_SIZE", "0"))  # 0 = use default
 
-    # Upload tuning: prefer multipart for larger files and avoid long single PUTs
+    # Cloudflare R2 supports path-style well; keep this explicit.
+    AWS_S3_ADDRESSING_STYLE = os.getenv("AWS_S3_ADDRESSING_STYLE", "path")
+
+    # Do not apply object ACLs (R2 uses bucket policies / public access settings).
+    AWS_DEFAULT_ACL = None
+
+    # If bucket is public, we don't need signed URLs.
+    AWS_QUERYSTRING_AUTH = os.getenv("AWS_QUERYSTRING_AUTH", "False").lower() in ("1", "true", "yes", "y", "on")
+
+    # Keep existing objects when uploading a file with the same name.
+    AWS_S3_FILE_OVERWRITE = False
+
+    # Upload tuning
     AWS_S3_MULTIPART_CHUNKSIZE = int(os.getenv("AWS_S3_MULTIPART_CHUNKSIZE", str(8 * 1024 * 1024)))  # 8MB
     AWS_S3_MAX_CONCURRENCY = int(os.getenv("AWS_S3_MAX_CONCURRENCY", "5"))
 
-    # Public media URL (path-style): https://<accountid>.r2.cloudflarestorage.com/<bucket>/
-    _endpoint = (AWS_S3_ENDPOINT_URL or "").rstrip("/")
-    MEDIA_URL = os.getenv(
-        "R2_PUBLIC_BASE_URL",
-        f"{_endpoint}/{AWS_STORAGE_BUCKET_NAME}/",
-    ).rstrip("/") + "/"
+    # Important: When you want images to be VIEWABLE in the browser, use a PUBLIC base URL.
+    # Recommended options (set ONE of these env vars):
+    # - R2_PUBLIC_BASE_URL or AWS_PUBLIC_BASE_URL:  https://<your-custom-domain>
+    # - or your R2 Public Development URL:         https://pub-xxxx.r2.dev
+    _public_base = (
+        os.getenv("R2_PUBLIC_BASE_URL")
+        or os.getenv("AWS_PUBLIC_BASE_URL")
+        or os.getenv("MEDIA_PUBLIC_BASE_URL")
+    )
+
+    if _public_base:
+        MEDIA_URL = _public_base.rstrip("/") + "/"
+    else:
+        # Fallback to the API endpoint + /<bucket>/ (works only if public access is enabled)
+        MEDIA_URL = AWS_S3_ENDPOINT_URL.rstrip("/") + f"/{AWS_STORAGE_BUCKET_NAME}/"
 
 else:
     # Local development fallback
@@ -287,4 +315,23 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Global messages 
 MESSAGE_TAGS= {
     messages.ERROR: 'danger',
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": os.getenv("LOG_LEVEL", "INFO"),
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
 }
