@@ -1,6 +1,6 @@
 annotated-types==0.7.0
 asgiref==3.11.1
-Django==6.0.2
+Django==5.2.11
 django-qr-code==4.2.0
 djangorestframework==3.16.1
 gunicorn==25.1.0
