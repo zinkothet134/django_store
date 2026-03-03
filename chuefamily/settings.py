@@ -281,17 +281,29 @@ if USE_R2:
     # Recommended options (set ONE of these env vars):
     # - R2_PUBLIC_BASE_URL or AWS_PUBLIC_BASE_URL:  https://<your-custom-domain>
     # - or your R2 Public Development URL:         https://pub-xxxx.r2.dev
-    _public_base = (
-        os.getenv("R2_PUBLIC_BASE_URL")
-        or os.getenv("AWS_PUBLIC_BASE_URL")
-        or os.getenv("MEDIA_PUBLIC_BASE_URL")
-    )
+    # _public_base = (
+    #     os.getenv("R2_PUBLIC_BASE_URL")
+    #     or os.getenv("AWS_PUBLIC_BASE_URL")
+    #     or os.getenv("MEDIA_PUBLIC_BASE_URL")
+    # )
+
+    # if _public_base:
+    #     MEDIA_URL = _public_base.rstrip("/") + "/"
+    # else:
+    #     # Fallback to the API endpoint + /<bucket>/ (works only if public access is enabled)
+    #     MEDIA_URL = AWS_S3_ENDPOINT_URL.rstrip("/") + f"/{AWS_STORAGE_BUCKET_NAME}/"
+    _public_base = os.getenv("MEDIA_PUBLIC_BASE_URL", "").strip()
 
     if _public_base:
         MEDIA_URL = _public_base.rstrip("/") + "/"
     else:
-        # Fallback to the API endpoint + /<bucket>/ (works only if public access is enabled)
-        MEDIA_URL = AWS_S3_ENDPOINT_URL.rstrip("/") + f"/{AWS_STORAGE_BUCKET_NAME}/"
+        # If you don't provide a public base URL, your images won't be viewable in browser.
+        # Force a clear error instead of silently using the API endpoint.
+        raise RuntimeError(
+            "MEDIA_PUBLIC_BASE_URL is not set. "
+            "Set it to your Cloudflare R2 Public Development URL (https://pub-xxxx.r2.dev) "
+            "or a custom domain (https://media.yourdomain.com)."
+        )
 
 else:
     # Local development fallback
