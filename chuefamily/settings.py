@@ -36,7 +36,7 @@ if not SECRET_KEY:
     else:
         raise RuntimeError("SECRET_KEY environment variable is not set")
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h.strip()]
 
 # CSRF: allow your Seenode domain(s) to POST to Django (admin login is a POST).
 # You can override/add origins via env var CSRF_TRUSTED_ORIGINS as a comma-separated list.
@@ -112,7 +112,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("DB_NAME", "db_nqljjh84al5c"),
         "USER": os.getenv("DB_USER", "db_nqljjh84al5c"),
-        "PASSWORD": os.getenv("DB_PASSWORD", "COcDJHAAWBOgE6wh3D2bQlTc"),
+        "PASSWORD": os.getenv("DB_PASSWORD", ""),
         "HOST": os.getenv("DB_HOST", "up-de-fra1-postgresql-1.db.run-on-seenode.com"),
         "PORT": os.getenv("DB_PORT", "11550"),
         "OPTIONS": {
@@ -228,6 +228,7 @@ if USE_R2:
         },
     }
 
+    # Seenode variable name is R2_SECRET_ACCESS_KEY (matches your dashboard)
     AWS_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
     AWS_STORAGE_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
@@ -238,8 +239,15 @@ if USE_R2:
     AWS_S3_ADDRESSING_STYLE = "path"
     AWS_DEFAULT_ACL = None
     AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_S3_MAX_MEMORY_SIZE = int(os.getenv("AWS_S3_MAX_MEMORY_SIZE", "0"))  # 0 = use default
 
-    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.{AWS_S3_ENDPOINT_URL.replace('https://','')}/"
+    # Public media URL (path-style): https://<accountid>.r2.cloudflarestorage.com/<bucket>/
+    _endpoint = (AWS_S3_ENDPOINT_URL or "").rstrip("/")
+    MEDIA_URL = os.getenv(
+        "R2_PUBLIC_BASE_URL",
+        f"{_endpoint}/{AWS_STORAGE_BUCKET_NAME}/",
+    ).rstrip("/") + "/"
 
 else:
     # Local development fallback
