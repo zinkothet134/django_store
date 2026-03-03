@@ -216,7 +216,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 # Cloudflare R2 Storage Configuration
 
-USE_R2 = os.getenv("USE_R2", "False").lower() in ("1", "true", "yes")
+USE_R2 = os.getenv("USE_R2", "False").lower() in ("1", "true", "yes", "y", "on")
 
 if USE_R2:
     STORAGES = {
@@ -233,6 +233,18 @@ if USE_R2:
     AWS_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
     AWS_STORAGE_BUCKET_NAME = os.getenv("R2_BUCKET_NAME")
 
+    # Validate required R2 configuration early (so failures are visible in logs)
+    _missing = [
+        name for name, val in {
+            "R2_ACCESS_KEY_ID": AWS_ACCESS_KEY_ID,
+            "R2_SECRET_ACCESS_KEY": AWS_SECRET_ACCESS_KEY,
+            "R2_BUCKET_NAME": AWS_STORAGE_BUCKET_NAME,
+            "R2_ENDPOINT_URL": os.getenv("R2_ENDPOINT_URL"),
+        }.items() if not val
+    ]
+    if _missing:
+        raise RuntimeError(f"Missing required R2 env var(s): {', '.join(_missing)}")
+
     AWS_S3_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL")
     AWS_S3_REGION_NAME = "auto"
     AWS_S3_SIGNATURE_VERSION = "s3v4"
@@ -241,6 +253,10 @@ if USE_R2:
     AWS_QUERYSTRING_AUTH = False
     AWS_S3_FILE_OVERWRITE = False
     AWS_S3_MAX_MEMORY_SIZE = int(os.getenv("AWS_S3_MAX_MEMORY_SIZE", "0"))  # 0 = use default
+
+    # Upload tuning: prefer multipart for larger files and avoid long single PUTs
+    AWS_S3_MULTIPART_CHUNKSIZE = int(os.getenv("AWS_S3_MULTIPART_CHUNKSIZE", str(8 * 1024 * 1024)))  # 8MB
+    AWS_S3_MAX_CONCURRENCY = int(os.getenv("AWS_S3_MAX_CONCURRENCY", "5"))
 
     # Public media URL (path-style): https://<accountid>.r2.cloudflarestorage.com/<bucket>/
     _endpoint = (AWS_S3_ENDPOINT_URL or "").rstrip("/")
