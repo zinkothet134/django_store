@@ -36,7 +36,19 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = ["*"]
 
-# CSRF_TRUSTED_ORIGINS = ['']
+# CSRF: allow your Seenode domain(s) to POST to Django (admin login is a POST).
+# You can override/add origins via env var CSRF_TRUSTED_ORIGINS as a comma-separated list.
+_csrf_env = os.getenv("CSRF_TRUSTED_ORIGINS", "").strip()
+CSRF_TRUSTED_ORIGINS = [
+    # Seenode default domains (wildcards are supported by Django)
+    "https://*.apps.run-on-seenode.com",
+    "https://*.run-on-seenode.com",
+    # Your current default domain (keep this even if wildcard should cover it)
+    "https://web-3jaowsngtrt0.up-de-fra1-k8s-1.apps.run-on-seenode.com",
+]
+if _csrf_env:
+    CSRF_TRUSTED_ORIGINS += [o.strip() for o in _csrf_env.split(",") if o.strip()]
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -129,6 +141,10 @@ TEMPLATES = [
 ROOT_URLCONF = "chuefamily.urls"
 WSGI_APPLICATION = "chuefamily.wsgi.application"
 
+# Seenode runs Django behind a proxy/ingress. Tell Django how to detect HTTPS.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -204,4 +220,3 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MESSAGE_TAGS= {
     messages.ERROR: 'danger',
 }
-
