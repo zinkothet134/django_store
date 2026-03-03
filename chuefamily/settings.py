@@ -234,8 +234,8 @@ if USE_R2:
 
     AWS_S3_ENDPOINT_URL = os.getenv("R2_ENDPOINT_URL")
     AWS_S3_REGION_NAME = "auto"
-
-    AWS_S3_ADDRESSING_STYLE = "virtual"
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    AWS_S3_ADDRESSING_STYLE = "path"
     AWS_DEFAULT_ACL = None
     AWS_QUERYSTRING_AUTH = False
 
