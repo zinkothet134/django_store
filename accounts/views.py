@@ -48,7 +48,7 @@ def register(request):
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
             activation_path = reverse('activate',kwargs={'uidb64':uid, 'token': token})
-            activation_url = f"{request.scheme}://{current_site.domain} {activation_path}"
+            activation_url = f"{request.scheme}://{current_site.domain}{activation_path}"
             subject = 'Activate you account'
             body = (
                 f"Hi {user.first_name or user.username}, \n\n"
