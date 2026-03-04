@@ -1,3 +1,4 @@
+
 """
 Django settings for chuefamily project.
 
@@ -25,18 +26,26 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # In production you MUST set SECRET_KEY in the environment.
 SECRET_KEY = os.getenv("SECRET_KEY")
 
+# Allow local development to run without setting SECRET_KEY.
+# Production safety: if DEBUG is False and SECRET_KEY is missing, crash on startup.
+if not SECRET_KEY:
+    if os.getenv("DEBUG", "True").lower() in ("1", "true", "yes", "y", "on"):
+        # A deterministic-but-not-secret dev key (OK for local only).
+        SECRET_KEY = "django-insecure-local-dev-key-change-me"
+    else:
+        raise RuntimeError("SECRET_KEY environment variable is not set")
+
 # SECURITY WARNING: don't run with debug turned on in production!
 # Local default is True; set DEBUG=0/False on the server.
 DEBUG = os.getenv("DEBUG", "True").lower() in ("1", "true", "yes", "y", "on")
 
-if not SECRET_KEY:
-    if DEBUG:
-        # Local/dev convenience only. DO NOT rely on this in production.
-        SECRET_KEY = "dev-insecure-secret-key"
-    else:
-        raise RuntimeError("SECRET_KEY environment variable is not set")
-
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h.strip()]
+
+# Helpful defaults for local development
+if DEBUG:
+    for _h in ("localhost", "127.0.0.1", "0.0.0.0"):
+        if _h not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(_h)
 
 # CSRF: allow your Seenode domain(s) to POST to Django (admin login is a POST).
 # You can override/add origins via env var CSRF_TRUSTED_ORIGINS as a comma-separated list.
@@ -50,6 +59,13 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 if _csrf_env:
     CSRF_TRUSTED_ORIGINS += [o.strip() for o in _csrf_env.split(",") if o.strip()]
+
+# Local dev origins
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS += [
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ]
 
 # Application definition
 
@@ -83,54 +99,55 @@ MIDDLEWARE = [
     
 ]
 
-#sqlite3
-'''
-DATABASES = {
-    "default": {
-        "ENGINE": config("DB_ENGINE", default="django.db.backends.sqlite3"),
-        "NAME": config("DB_NAME", default=str(BASE_DIR / "db.sqlite3")),
-        "USER": config("DB_USER", default=""),
-        "PASSWORD": config("DB_PASSWORD", default=""),
-        "HOST": config("DB_HOST", default=""),
-        "PORT": config("DB_PORT", default=""),
+# -----------------------------
+# Database configuration
+# -----------------------------
+# For local development, default to SQLite so you can run `python manage.py runserver`
+# without needing remote DB credentials.
+#
+# If you want to use the remote Postgres locally, set:
+#   USE_SQLITE=False
+#   DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
+#
+USE_SQLITE = os.getenv("USE_SQLITE", "True" if DEBUG else "False").lower() in (
+    "1", "true", "yes", "y", "on"
+)
+
+if USE_SQLITE:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": str(BASE_DIR / "db.sqlite3"),
+        }
     }
-}
-'''
-#Postgresql
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.postgresql",
-#         "NAME": os.environ.get('NAME'),
-#         "USER": os.environ.get('USER'),
-#         "PASSWORD": os.environ.get('PASSWORD'),
-#         "HOST": os.environ.get('HOST'),
-#         "PORT": '11550',
-#     }
-# }
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME", "db_nqljjh84al5c"),
-        "USER": os.getenv("DB_USER", "db_nqljjh84al5c"),
-        "PASSWORD": os.getenv("DB_PASSWORD", ""),
-        "HOST": os.getenv("DB_HOST", "up-de-fra1-postgresql-1.db.run-on-seenode.com"),
-        "PORT": os.getenv("DB_PORT", "11550"),
-        "OPTIONS": {
-            # Many managed Postgres providers require SSL; leave this on unless your provider says otherwise.
-            "sslmode": os.getenv("DB_SSLMODE", "require"),
-            # Fail fast if the DB cannot be reached
-            "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),
-            # Keepalives help prevent proxy/LB idle disconnects
-            "keepalives": 1,
-            "keepalives_idle": int(os.getenv("DB_KEEPALIVES_IDLE", "30")),
-            "keepalives_interval": int(os.getenv("DB_KEEPALIVES_INTERVAL", "10")),
-            "keepalives_count": int(os.getenv("DB_KEEPALIVES_COUNT", "5")),
-        },
-        # For reliability on some managed platforms, default to no persistent connections.
-        # If everything is stable, you can increase this (e.g., 60).
-        "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "0")),
+else:
+    _db_password = os.getenv("DB_PASSWORD", "")
+    if not _db_password:
+        raise RuntimeError(
+            "DB_PASSWORD is not set. For local dev you can set USE_SQLITE=True, "
+            "or set DB_PASSWORD (and other DB_* vars) to use Postgres."
+        )
+
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME", "db_nqljjh84al5c"),
+            "USER": os.getenv("DB_USER", "db_nqljjh84al5c"),
+            "PASSWORD": _db_password,
+            "HOST": os.getenv("DB_HOST", "up-de-fra1-postgresql-1.db.run-on-seenode.com"),
+            "PORT": os.getenv("DB_PORT", "11550"),
+            "OPTIONS": {
+                # Many managed Postgres providers require SSL; override locally if needed.
+                "sslmode": os.getenv("DB_SSLMODE", "require"),
+                "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),
+                "keepalives": 1,
+                "keepalives_idle": int(os.getenv("DB_KEEPALIVES_IDLE", "30")),
+                "keepalives_interval": int(os.getenv("DB_KEEPALIVES_INTERVAL", "10")),
+                "keepalives_count": int(os.getenv("DB_KEEPALIVES_COUNT", "5")),
+            },
+            "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "0")),
+        }
     }
-}
 
 
 
@@ -371,3 +388,26 @@ if not DEBUG:
 
     # Only enable redirect if the platform already serves HTTPS (Seenode does)
     SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "True").lower() in ("1", "true", "yes", "y", "on")
+
+# Make sure local dev never forces HTTPS redirects
+if DEBUG:
+    SECURE_SSL_REDIRECT = False
+
+"""Email configuration for account activation"""
+
+# Use console backend in local development (prints email in terminal)
+# In production you should set EMAIL_BACKEND=smtp via environment variable.
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend" if DEBUG else "django.core.mail.backends.smtp.EmailBackend",
+)
+
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@chuefamily.com")
+
+# SMTP settings (used when EMAIL_BACKEND=smtp)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("1", "true", "yes", "y", "on")
+
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
