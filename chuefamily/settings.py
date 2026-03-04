@@ -353,3 +353,21 @@ LOGGING = {
         },
     },
 }
+
+# -------------------------------------------------
+# Upload limits (helps prevent connection drops when
+# uploading images/products through admin)
+# -------------------------------------------------
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("DATA_UPLOAD_MAX_MEMORY_SIZE", "10485760"))  # 10 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv("FILE_UPLOAD_MAX_MEMORY_SIZE", "10485760"))  # 10 MB
+
+# -------------------------------------------------
+# Security settings for production
+# These only activate when DEBUG=False
+# -------------------------------------------------
+if not DEBUG:
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+
+    # Only enable redirect if the platform already serves HTTPS (Seenode does)
+    SECURE_SSL_REDIRECT = os.getenv("SECURE_SSL_REDIRECT", "True").lower() in ("1", "true", "yes", "y", "on")
