@@ -76,7 +76,7 @@
           {% if p.images %}
           <figure style="margin: 0;">
             <a href="{% url 'warehouse_product_detail' p.sku %}">
-            <img src="{{ p.images.url }}" alt="{{ p.product_name }}"
+            <img src="{{ p.images.url }}" alt="{{ p.display_name }}"
               style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px;"> </a>
           </figure>
           {% else %}
@@ -87,14 +87,14 @@
           {% if p.sku %}
             <a href="{% url 'warehouse_product_detail' p.sku %}">{{ p.sku|default:"-" }}</a>
           {% else %}
-            {{ p.product_name }} <span class="text-danger">(Missing SKU)</span>
+            {{ p.display_name }} <span class="text-danger">(Missing SKU)</span>
           {% endif %}
         </td>
         <td>
           {% if p.sku %}
-            <a href="{% url 'warehouse_product_detail' p.sku %}">{{ p.product_name }}</a>
+            <a href="{% url 'warehouse_product_detail' p.sku %}">{{ p.display_name }}</a>
           {% else %}
-            {{ p.product_name }} <span class="text-danger">(Missing SKU)</span>
+            {{ p.display_name }} <span class="text-danger">(Missing SKU)</span>
           {% endif %}
         </td>
 
