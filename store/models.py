@@ -5,11 +5,13 @@ import qrcode
 from io import BytesIO
 from django.core.files import File
 from django.db.models import Max
+from django.utils import translation
 # Create your models here.
 
 class Product(models.Model):
     sku = models.CharField(max_length=50, unique=True, blank=True)
     product_name = models.CharField(max_length=200, unique=True)
+    name_my = models.CharField(max_length=200, blank=True, null= True)
     slug = models.SlugField(max_length=200, unique=True)
     description = models.TextField(max_length=500, blank=True)
     price = models.IntegerField()
@@ -22,6 +24,13 @@ class Product(models.Model):
 
     qr_code = models.ImageField(upload_to='photos/qr/', blank=True, null=True)
 
+    @property
+    def display_name(self):
+        lang = translation.get_language()
+        if lang == 'my' and self.name_my:
+            return self.name_my
+        return self.product_name
+    
     def get_url(self):
         return reverse('product_detail', args=[self.category.slug, self.slug])
     def __str__(self):
