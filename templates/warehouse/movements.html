@@ -140,24 +140,28 @@
       <div class="table-responsive">
         <table class="table table-bordered table-sm" style="table-layout: fixed;">
           <colgroup>
+            <col style="width: 90px;">
             <col style="width: 140px;">
             <col style="width: 90px;">
             <col style="width: 140px;">
             <col style="width: 80px;">
+            <col style="width: 100px;">
             <col style="width: 120px;">
-            <col style="width: 140px;">
+            <col style="width: 120px;">
             <col style="width: 140px;">
             <col style="width: 220px;">
           </colgroup>
 
           <thead class="thead-light">
             <tr>
+              <th>Image</th>
               <th>Created</th>
               <th>SKU</th>
               <th>Product</th>
               <th>Type</th>
               <th>Qty</th>
               <th>Unit Price</th>
+              <th>Amount</th>
               <th>Ref</th>
               <th class="remark-col">Remark</th>
             </tr>
@@ -166,6 +170,11 @@
           <tbody>
             {% for m in movements %}
               <tr class="{% if m.movement_type == 'IN' %}table-success{% else %}table-danger{% endif %}">
+                <td>
+                  {% if m.product.images %}
+                    <img src="{{ m.product.images.url }}" style="width:40px;height:40px;object-fit:cover;border-radius:4px;">
+                  {% endif %}
+                </td>
                 <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
                 <td>{{ m.product.sku }}</td>
                 <td>{{ m.product.product_name }}</td>
@@ -179,12 +188,20 @@
                 <td>{{ m.quantity }}</td>
                 <td>MMK {{ m.unit_price|intcomma }}</td>
                 <td>
+                  MMK {% widthratio m.quantity 1 m.unit_price %}
+                </td>
+                <td>
                   {{ m.get_ref_type_display|default:"-" }}
                   {% if m.ref_no %}<br><small class="text-muted">{{ m.ref_no }}</small>{% endif %}
                 </td>
                 <td class="remark-col">{{ m.remark|default:"-" }}</td>
               </tr>
             {% endfor %}
+            <tr class="table-warning">
+              <td colspan="7" class="text-right"><b>Total Sell Amount</b></td>
+              <td><b>MMK {{ total_sell_amount|intcomma }}</b></td>
+              <td colspan="2"></td>
+            </tr>
           </tbody>
 
         </table>
