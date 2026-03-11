@@ -413,6 +413,11 @@ def movement_list(request):
     net_total = total_in - total_out
 
     value_in = qs.filter(movement_type=StockMovement.IN).aggregate(s=Sum('unit_price'))['s']
+    total_sell_amount = qs.filter(
+        movement_type=StockMovement.OUT
+        ).aggregate(
+            total=Sum(ExpressionWrapper(F('quantity') * F('unit_price'), output_field=IntegerField()))
+        )['total'] or 0
     # The above is not correct value; compute value totals using Python over paginated rows or annotate if needed.
     # We'll compute on the current page in the template using qty*unit_price, and show qty totals here.
 
@@ -435,6 +440,7 @@ def movement_list(request):
         'total_in': total_in,
         'total_out': total_out,
         'net_total': net_total,
+        'total_sell_amount':total_sell_amount,
     }
     return render(request, 'warehouse/movements.html', context)
     
