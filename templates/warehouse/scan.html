@@ -4,10 +4,10 @@
 <div class="container py-4">
 
   <div class="d-flex justify-content-end mb-3">
-  <a class="btn btn-outline-secondary btn-sm" href="{% url 'warehouse_movements' %}" style="text-decoration:none;">
-    <h2 class="mb-0">Stock Movement</h2>
-  </a>
-</div>
+    <a class="btn btn-outline-secondary btn-sm" href="{% url 'warehouse_movements' %}" style="text-decoration:none;">
+      <h2 class="mb-0">Stock Movement</h2>
+    </a>
+  </div>
 
   <div class="row align-items-stretch">
     <!-- LEFT: STOCK MOVEMENT FORM -->
@@ -58,37 +58,27 @@
           <label>Quantity</label>
           <input type="number" name="quantity" class="form-control" min="1" required value="{{ form_values.quantity }}">
         </div>
+
         <div class="form-group mt-2">
           <label>Date</label>
-          <input type="datetime-local" name="created_at" class="form-control"
-                value="{{ form_values.created_at }}">
+          <input type="datetime-local" name="created_at" class="form-control" value="{{ form_values.created_at }}">
         </div>
+
         <div class="form-group mt-2">
           <label>Ref Type</label>
           <select name="ref_type" id="refTypeSelect" class="form-control">
             <option value="">---------</option>
             {% for code, name in ref_type_choices %}
               <option value="{{ code }}"
-                data-actions="{% if code == 'SUP_INV' or code == 'SUP_REQ' %}IN{% elif code == 'CUS_INV' or code == 'CUS_REQ' %}OUT{% else %}IN,OUT{% endif %}"
+                data-actions="{% if code == 'SUP_INV' or code == 'SUP_REQ' or code == 'RET_RETURN' %}IN{% elif code == 'CUS_INV' or code == 'CUS_REQ' or code == 'RET_PART' %}OUT{% else %}IN,OUT{% endif %}"
                 {% if form_values.ref_type == code %}selected{% endif %}>
                 {{ name }}
               </option>
             {% endfor %}
-            <option value="RET_PART"
-              data-actions="OUT"
-              {% if form_values.ref_type == "RET_PART" %}selected{% endif %}>
-              Stock Partition for Retail
-            </option>
-            <option value="RET_RETURN"
-              data-actions="IN"
-              {% if form_values.ref_type == "RET_RETURN" %}selected{% endif %}>
-              Return from Retail
-            </option>
           </select>
           <small class="text-muted">Choose the document type that caused this stock movement.</small>
         </div>
 
-        <!-- javaScript -->
         <script>
           document.addEventListener('DOMContentLoaded', function () {
             const actionSelect = document.querySelector('select[name="action"]');
@@ -105,7 +95,7 @@
 
               refTypeSelect.innerHTML = '';
               if (placeholder) {
-                refTypeSelect.appendChild(placeholder);
+                refTypeSelect.appendChild(placeholder.cloneNode(true));
               } else {
                 const ph = document.createElement('option');
                 ph.value = '';
@@ -135,7 +125,6 @@
             rebuildRefTypes();
           });
         </script>
-        <!-- end js -->
 
         <div class="form-group mt-2">
           <label>Ref No</label>
@@ -149,159 +138,139 @@
                     placeholder="Optional note...">{{ form_values.remark }}</textarea>
         </div>
 
-        <a href="{% url 'warehouse_products' %}" 
-           class="btn btn-primary mt-3"
-           onclick="event.preventDefault(); this.closest('form').submit(); window.location.href=this.href;">
-           Submit
-        </a>
+        <button class="btn btn-primary mt-3" type="submit">Submit</button>
       </form>
 
     </div>
 
     <!-- RIGHT: MOVEMENT RECORD TABLE -->
-    <!-- RIGHT: MOVEMENT RECORD TABLE -->
-<div class="col-md-8 mt-5 d-flex">
-  <div class="card w-100 d-flex flex-column">
+    <div class="col-md-8 mt-5 d-flex">
+      <div class="card w-100 d-flex flex-column">
+        <div class="card-body d-flex flex-column">
 
-  <div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h4 class="mb-0">Records</h4>
+            <span class="badge badge-primary">Total: {{ movements.paginator.count }}</span>
+          </div>
 
-    <!-- Header + Record Count -->
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <h4 class="mb-0">Records</h4>
-      <span class="badge badge-primary">Total: {{ movements.paginator.count }}</span>
-    </div>
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <div class="p-2 border rounded text-center">
+                <small class="text-muted">Total IN</small><br>
+                <b class="text-success">{{ total_in }}</b>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 border rounded text-center">
+                <small class="text-muted">Total OUT</small><br>
+                <b class="text-danger">{{ total_out }}</b>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="p-2 border rounded text-center">
+                <small class="text-muted">Net</small><br>
+                {% if net_total > 0 %}
+                  <b class="text-success">+{{ net_total }}</b>
+                {% elif net_total < 0 %}
+                  <b class="text-danger">{{ net_total }}</b>
+                {% else %}
+                  <b class="text-muted">0</b>
+                {% endif %}
+              </div>
+            </div>
+          </div>
 
-    <!-- Summary Totals -->
-    <div class="row mb-3">
-      <div class="col-md-4">
-        <div class="p-2 border rounded text-center">
-          <small class="text-muted">Total IN</small><br>
-          <b class="text-success">{{ total_in }}</b>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="p-2 border rounded text-center">
-          <small class="text-muted">Total OUT</small><br>
-          <b class="text-danger">{{ total_out }}</b>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="p-2 border rounded text-center">
-          <small class="text-muted">Net</small><br>
-          {% if net_total > 0 %}
-            <b class="text-success">+{{ net_total }}</b>
-          {% elif net_total < 0 %}
-            <b class="text-danger">{{ net_total }}</b>
-          {% else %}
-            <b class="text-muted">0</b>
-          {% endif %}
-        </div>
-      </div>
-    </div>
+          {% if rows %}
+            <div class="flex-grow-1" style="overflow-y:auto; border:1px solid #dee2e6; border-radius:6px;">
+              <table class="table table-bordered table-sm mb-0" style="table-layout: fixed;">
+                <colgroup>
+                  <col style="width: 140px;">
+                  <col style="width: 80px;">
+                  <col style="width: 70px;">
+                  <col style="width: 110px;">
+                  <col style="width: 160px;">
+                  <col style="width: 110px;">
+                  <col style="width: 150px;">
+                  <col style="width: 130px;">
+                </colgroup>
+                <thead style="position: sticky; top: 0; background: #f8f9fa; z-index: 5;">
+                  <tr>
+                    <th>Created At</th>
+                    <th>Type</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Ref Type</th>
+                    <th>Ref No</th>
+                    <th class="remark-col">Remark</th>
+                    <th>Balance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for r in rows %}
+                    {% with m=r.obj %}
+                    <tr class="{% if m.movement_type == 'IN' %}table-success{% else %}table-danger{% endif %}">
+                      <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
+                      <td>
+                        {% if m.movement_type == 'IN' %}
+                          <span class="badge badge-success">IN</span>
+                        {% else %}
+                          <span class="badge badge-danger">OUT</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ m.quantity }}</td>
+                      <td>MMK {{ m.unit_price|intcomma }}</td>
+                      <td>{{ m.get_ref_type_display|default:"-" }}</td>
+                      <td>{{ m.ref_no|default:"-" }}</td>
+                      <td class="remark-col">{{ m.remark|default:"-" }}</td>
+                      <td>
+                        <small class="text-muted">before:</small> {{ r.balance_before }}
+                        <br>
+                        <small class="text-muted">after:</small> <b>{{ r.balance_after }}</b>
+                      </td>
+                    </tr>
+                    {% endwith %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
 
-    {% if rows %}
-      <!-- Scroll area takes remaining height -->
-      <div class="flex-grow-1" style="overflow-y:auto; border:1px solid #dee2e6; border-radius:6px;">
-        <!-- <style>
-          .remark-col {
-              white-space: normal !important;   /* allow wrapping */
-              word-break: break-word;           /* break long words */
-              max-width: 200px;                 /* control column width */
-          }
-          </style> -->
-        <table class="table table-bordered table-sm mb-0" style="table-layout: fixed;">
-          <colgroup>
-            <col style="width: 140px;">   <!-- Created At -->
-            <col style="width: 80px;">    <!-- Type -->
-            <col style="width: 70px;">    <!-- Qty -->
-            <col style="width: 110px;">   <!-- Unit Price -->
-            <col style="width: 160px;">   <!-- Ref Type -->
-            <col style="width: 110px;">   <!-- Ref No -->
-            <col style="width: 150px;">   <!-- Remark -->
-            <col style="width: 130px;">   <!-- Balance -->
-          </colgroup>
-          <thead style="position: sticky; top: 0; background: #f8f9fa; z-index: 5;">
-            <tr>
-              <th>Created At</th>
-              <th>Type</th>
-              <th>Qty</th>
-              <th>Unit Price</th>
-              <th>Ref Type</th>
-              <th>Ref No</th>
-              <th class="remark-col">Remark</th>
-              <th>Balance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in rows %}
-              {% with m=r.obj %}
-              <tr class="{% if m.movement_type == 'IN' %}table-success{% else %}table-danger{% endif %}">
-                <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
-
-                <td>
-                  {% if m.movement_type == 'IN' %}
-                    <span class="badge badge-success">IN</span>
+            {% if movements.has_other_pages %}
+              <nav class="mt-3">
+                <ul class="pagination justify-content-center mb-0">
+                  {% if movements.has_previous %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ movements.previous_page_number }}">Previous</a>
+                    </li>
                   {% else %}
-                    <span class="badge badge-danger">OUT</span>
+                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
                   {% endif %}
-                </td>
 
-                <td>{{ m.quantity }}</td>
-                <td>MMK {{ m.unit_price|intcomma }}</td>
-                <td>{{ m.get_ref_type_display|default:"-" }}</td>
-                <td>{{ m.ref_no|default:"-" }}</td>
-                <td class="remark-col">{{ m.remark|default:"-" }}</td>
+                  {% for num in movements.paginator.page_range %}
+                    {% if movements.number == num %}
+                      <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                    {% else %}
+                      <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+                    {% endif %}
+                  {% endfor %}
 
-                <td>
-                  <small class="text-muted">before:</small> {{ r.balance_before }}
-                  <br>
-                  <small class="text-muted">after:</small> <b>{{ r.balance_after }}</b>
-                </td>
-              </tr>
-              {% endwith %}
-            {% endfor %}
-          </tbody>
-        </table>
+                  {% if movements.has_next %}
+                    <li class="page-item">
+                      <a class="page-link" href="?page={{ movements.next_page_number }}">Next</a>
+                    </li>
+                  {% else %}
+                    <li class="page-item disabled"><span class="page-link">Next</span></li>
+                  {% endif %}
+                </ul>
+              </nav>
+            {% endif %}
+
+          {% else %}
+            <p class="text-muted mb-0">No movement records yet.</p>
+          {% endif %}
+
+        </div>
       </div>
-
-      <!-- Pagination -->
-      {% if movements.has_other_pages %}
-        <nav class="mt-3">
-          <ul class="pagination justify-content-center mb-0">
-            {% if movements.has_previous %}
-              <li class="page-item">
-                <a class="page-link" href="?page={{ movements.previous_page_number }}">Previous</a>
-              </li>
-            {% else %}
-              <li class="page-item disabled"><span class="page-link">Previous</span></li>
-            {% endif %}
-
-            {% for num in movements.paginator.page_range %}
-              {% if movements.number == num %}
-                <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-              {% else %}
-                <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
-              {% endif %}
-            {% endfor %}
-
-            {% if movements.has_next %}
-              <li class="page-item">
-                <a class="page-link" href="?page={{ movements.next_page_number }}">Next</a>
-              </li>
-            {% else %}
-              <li class="page-item disabled"><span class="page-link">Next</span></li>
-            {% endif %}
-          </ul>
-        </nav>
-      {% endif %}
-
-    {% else %}
-      <p class="text-muted mb-0">No movement records yet.</p>
-    {% endif %}
-
+    </div>
   </div>
-</div>
-  
-
 </div>
 {% endblock %}

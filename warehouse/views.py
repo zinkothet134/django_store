@@ -278,7 +278,7 @@ def scan(request, sku):
                 messages.success(request, 'Stock OUT recorded successfully.')
             
             product.save(update_fields=['stock'])
-            return redirect('warehouse_scan', sku=product.sku)
+            return redirect('warehouse_products')
     movements_qs = StockMovement.objects.filter(product=product).order_by('-created_at')
     # # pagination 
     # paginator = Paginator(movements_qs, 5)
