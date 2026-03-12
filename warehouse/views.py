@@ -7,7 +7,7 @@ from .permissions import in_group
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.contrib import messages
-from django.utils.dateparse import parse_date
+from django.utils.dateparse import parse_date, parse_datetime
 from django.utils import timezone
 from datetime import timedelta
 # Create your views here.
@@ -199,6 +199,7 @@ def scan(request, sku):
     form_values = {
         'action': 'IN',
         'quantity': '',
+        'created_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
         'ref_type': '',
         'ref_no': '',
         'remark': '',
@@ -209,6 +210,7 @@ def scan(request, sku):
         action = request.POST.get('action')
         qty = int(request.POST.get('quantity') or 0 )
         qty_raw = request.POST.get('quantity')
+        created_at_raw = (request.POST.get('created_at') or '').strip()
         ref_type = (request.POST.get('ref_type') or '').strip()
         ref_no = (request.POST.get('ref_no') or '').strip()
         remark = (request.POST.get('remark') or '').strip()
@@ -217,6 +219,7 @@ def scan(request, sku):
         form_values = {
             'action': action or 'IN',
             'quantity': qty_raw or '',
+            'created_at': created_at_raw or timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             'ref_type': ref_type,
             'ref_no': ref_no,
             'remark': remark,
@@ -226,6 +229,12 @@ def scan(request, sku):
             qty = int(qty_raw)
         except(TypeError, ValueError):
             qty = 0
+
+        created_at = parse_datetime(created_at_raw) if created_at_raw else timezone.now()
+        if created_at is None and created_at_raw:
+            error = 'Invalid date/time'
+        elif created_at is not None and timezone.is_naive(created_at):
+            created_at = timezone.make_aware(created_at, timezone.get_current_timezone())
 
         if qty <= 0: 
             error = 'Quantity must be greater than 0'
@@ -238,8 +247,8 @@ def scan(request, sku):
         if ref_type and ref_type not in valid_ref_types:
             error = "Invalid referrence type"
         allowed_by_action = {
-            StockMovement.IN: {'SUP_INV', 'SUP_REQ', 'ADJ'},
-            StockMovement.OUT: {'CUS_INV', 'CUS_REQ', 'ADJ'},
+            StockMovement.IN: {'SUP_INV', 'SUP_REQ', 'RET_RETURN', 'ADJ'},
+            StockMovement.OUT: {'CUS_INV', 'CUS_REQ', 'RET_PART', 'ADJ'},
         }
         if not error and ref_type and ref_type not in allowed_by_action.get(action, set()):
             error = "Selected Ref Type is not allowed for this action."
@@ -255,6 +264,7 @@ def scan(request, sku):
                 ref_no = ref_no,
                 remark = remark,
                 created_by=request.user,
+                created_at=created_at,
             )
 
             #update stock 
@@ -412,7 +422,6 @@ def movement_list(request):
     total_out = qs.filter(movement_type=StockMovement.OUT).aggregate(s=Sum('quantity'))['s'] or 0
     net_total = total_in - total_out
 
-    value_in = qs.filter(movement_type=StockMovement.IN).aggregate(s=Sum('unit_price'))['s']
     total_sell_amount = qs.filter(
         movement_type=StockMovement.OUT
         ).aggregate(

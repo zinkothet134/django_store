@@ -6,6 +6,7 @@ from io import BytesIO
 from django.core.files import File
 from django.db.models import Max
 from django.utils import translation
+from django.utils import timezone
 # Create your models here.
 
 class Product(models.Model):
@@ -149,6 +150,8 @@ class StockMovement(models.Model):
         ('CUS_INV', 'Customer Invoice'),
         ('SUP_REQ', 'Supplier Requisition'),
         ('CUS_REQ', 'Customer Requisition'),
+        ('RET_PART', 'Stock Partition for Retail'),
+        ('RET_RETURN', 'Return from Retail'),
         ('ADJ', 'Adjustment'),
     )
 
@@ -162,7 +165,7 @@ class StockMovement(models.Model):
     remark = models.CharField(max_length=255, blank=True)
 
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(default=timezone.now, blank=True)
 
 
     def __str__(self):

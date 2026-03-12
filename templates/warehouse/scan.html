@@ -58,7 +58,11 @@
           <label>Quantity</label>
           <input type="number" name="quantity" class="form-control" min="1" required value="{{ form_values.quantity }}">
         </div>
-
+        <div class="form-group mt-2">
+          <label>Date</label>
+          <input type="datetime-local" name="created_at" class="form-control"
+                value="{{ form_values.created_at }}">
+        </div>
         <div class="form-group mt-2">
           <label>Ref Type</label>
           <select name="ref_type" id="refTypeSelect" class="form-control">
@@ -70,6 +74,16 @@
                 {{ name }}
               </option>
             {% endfor %}
+            <option value="RET_PART"
+              data-actions="OUT"
+              {% if form_values.ref_type == "RET_PART" %}selected{% endif %}>
+              Stock Partition for Retail
+            </option>
+            <option value="RET_RETURN"
+              data-actions="IN"
+              {% if form_values.ref_type == "RET_RETURN" %}selected{% endif %}>
+              Return from Retail
+            </option>
           </select>
           <small class="text-muted">Choose the document type that caused this stock movement.</small>
         </div>
@@ -135,7 +149,11 @@
                     placeholder="Optional note...">{{ form_values.remark }}</textarea>
         </div>
 
-        <button class="btn btn-primary mt-3" type="submit">Submit</button>
+        <a href="{% url 'warehouse_product_list' %}" 
+           class="btn btn-primary mt-3"
+           onclick="event.preventDefault(); this.closest('form').submit(); window.location.href=this.href;">
+           Submit
+        </a>
       </form>
 
     </div>
