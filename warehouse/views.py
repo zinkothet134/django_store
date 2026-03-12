@@ -381,6 +381,13 @@ def movement_list(request):
     else:
         movement_type = ''
 
+    ref_type = (request.GET.get('ref_type') or '').strip()
+    valid_ref_types = {code for code, _ in StockMovement.REF_TYPES}
+    if ref_type in valid_ref_types:
+        qs = qs.filter(ref_type=ref_type)
+    else:
+        ref_type = ''
+
     # Date range (inclusive)
     start_date_str = (request.GET.get('start') or '').strip()
     end_date_str = (request.GET.get('end') or '').strip()
@@ -396,12 +403,10 @@ def movement_list(request):
         start_date = today
         end_date = today
     elif preset == 'weekly' and not (start_date or end_date):
-        # Monday .. Sunday of current week
         start_date = today - timedelta(days=today.weekday())
         end_date = start_date + timedelta(days=6)
     elif preset == 'monthly' and not (start_date or end_date):
         start_date = today.replace(day=1)
-        # first day next month minus 1 day
         if start_date.month == 12:
             next_month = start_date.replace(year=start_date.year + 1, month=1, day=1)
         else:
@@ -409,7 +414,6 @@ def movement_list(request):
         end_date = next_month - timedelta(days=1)
 
     if start_date and end_date and start_date > end_date:
-        # swap if user entered reversed
         start_date, end_date = end_date, start_date
 
     if start_date:
@@ -422,13 +426,19 @@ def movement_list(request):
     total_out = qs.filter(movement_type=StockMovement.OUT).aggregate(s=Sum('quantity'))['s'] or 0
     net_total = total_in - total_out
 
-    total_sell_amount = qs.filter(
+    total_out_amount = qs.filter(
         movement_type=StockMovement.OUT
-        ).aggregate(
-            total=Sum(ExpressionWrapper(F('quantity') * F('unit_price'), output_field=IntegerField()))
-        )['total'] or 0
-    # The above is not correct value; compute value totals using Python over paginated rows or annotate if needed.
-    # We'll compute on the current page in the template using qty*unit_price, and show qty totals here.
+    ).aggregate(
+        total=Sum(ExpressionWrapper(F('quantity') * F('unit_price'), output_field=IntegerField()))
+    )['total'] or 0
+
+    total_in_amount = qs.filter(
+        movement_type=StockMovement.IN
+    ).aggregate(
+        total=Sum(ExpressionWrapper(F('quantity') * F('unit_price'), output_field=IntegerField()))
+    )['total'] or 0
+
+    total_sell_amount = total_out_amount - total_in_amount
 
     # Pagination
     paginator = Paginator(qs, 50)
@@ -436,6 +446,7 @@ def movement_list(request):
     movements = paginator.get_page(page_number)
 
     categories = Category.objects.all().order_by('category_name')
+    ref_type_choices = StockMovement.REF_TYPES
 
     context = {
         'movements': movements,
@@ -443,13 +454,15 @@ def movement_list(request):
         'keyword': keyword,
         'selected_category': category_id,
         'movement_type': movement_type,
+        'ref_type': ref_type,
+        'ref_type_choices': ref_type_choices,
         'start': start_date_str,
         'end': end_date_str,
         'preset': preset,
         'total_in': total_in,
         'total_out': total_out,
         'net_total': net_total,
-        'total_sell_amount':total_sell_amount,
+        'total_sell_amount': total_sell_amount,
     }
     return render(request, 'warehouse/movements.html', context)
     

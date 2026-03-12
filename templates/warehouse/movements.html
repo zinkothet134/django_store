@@ -3,7 +3,6 @@
 {% block content %}
 
 <style>
-  /* Print only the receipt area */
   @media print {
     body * { visibility: hidden; }
     #receipt, #receipt * { visibility: visible; }
@@ -11,7 +10,6 @@
     .no-print { display: none !important; }
   }
 
-  /* Wrap long remark text */
   .remark-col {
     white-space: normal !important;
     word-break: break-word;
@@ -28,7 +26,6 @@
     </div>
   </div>
 
-  <!-- FILTERS -->
   <form method="get" class="card p-3 mb-3 no-print">
     <div class="row">
 
@@ -55,6 +52,16 @@
           <option value="">All</option>
           <option value="IN" {% if movement_type == "IN" %}selected{% endif %}>IN</option>
           <option value="OUT" {% if movement_type == "OUT" %}selected{% endif %}>OUT</option>
+        </select>
+      </div>
+
+      <div class="col-md-3 mb-2">
+        <label>Ref Type</label>
+        <select name="ref_type" class="form-control">
+          <option value="">All</option>
+          {% for code, name in ref_type_choices %}
+            <option value="{{ code }}" {% if ref_type == code %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
         </select>
       </div>
 
@@ -86,7 +93,6 @@
     </div>
   </form>
 
-  <!-- RECEIPT AREA -->
   <div id="receipt" class="card p-3">
 
     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -108,7 +114,6 @@
       </div>
     </div>
 
-    <!-- Summary totals -->
     <div class="row mb-3">
       <div class="col-md-4">
         <div class="p-2 border rounded text-center">
@@ -187,9 +192,7 @@
                 </td>
                 <td>{{ m.quantity }}</td>
                 <td>MMK {{ m.unit_price|intcomma }}</td>
-                <td>
-                  MMK {% widthratio m.quantity 1 m.unit_price %}
-                </td>
+                <td>MMK {% widthratio m.quantity 1 m.unit_price %}</td>
                 <td>
                   {{ m.get_ref_type_display|default:"-" }}
                   {% if m.ref_no %}<br><small class="text-muted">{{ m.ref_no }}</small>{% endif %}
@@ -197,24 +200,23 @@
                 <td class="remark-col">{{ m.remark|default:"-" }}</td>
               </tr>
             {% endfor %}
+
             <tr class="table-warning">
-              <td colspan="7" class="text-right"><b>Total Sell Amount</b></td>
+              <td colspan="7" class="text-right"><b>Net Sell Amount (OUT - IN)</b></td>
               <td><b>MMK {{ total_sell_amount|intcomma }}</b></td>
               <td colspan="2"></td>
             </tr>
           </tbody>
-
         </table>
       </div>
 
-      <!-- Pagination (keeps filters) -->
       {% if movements.has_other_pages %}
         <nav class="mt-3 no-print">
           <ul class="pagination justify-content-center">
 
             {% if movements.has_previous %}
               <li class="page-item">
-                <a class="page-link" href="?page={{ movements.previous_page_number }}&keyword={{ keyword }}&category={{ selected_category }}&type={{ movement_type }}&start={{ start }}&end={{ end }}&preset={{ preset }}">Previous</a>
+                <a class="page-link" href="?page={{ movements.previous_page_number }}&keyword={{ keyword }}&category={{ selected_category }}&type={{ movement_type }}&ref_type={{ ref_type }}&start={{ start }}&end={{ end }}&preset={{ preset }}">Previous</a>
               </li>
             {% else %}
               <li class="page-item disabled"><span class="page-link">Previous</span></li>
@@ -225,14 +227,14 @@
                 <li class="page-item active"><span class="page-link">{{ num }}</span></li>
               {% else %}
                 <li class="page-item">
-                  <a class="page-link" href="?page={{ num }}&keyword={{ keyword }}&category={{ selected_category }}&type={{ movement_type }}&start={{ start }}&end={{ end }}&preset={{ preset }}">{{ num }}</a>
+                  <a class="page-link" href="?page={{ num }}&keyword={{ keyword }}&category={{ selected_category }}&type={{ movement_type }}&ref_type={{ ref_type }}&start={{ start }}&end={{ end }}&preset={{ preset }}">{{ num }}</a>
                 </li>
               {% endif %}
             {% endfor %}
 
             {% if movements.has_next %}
               <li class="page-item">
-                <a class="page-link" href="?page={{ movements.next_page_number }}&keyword={{ keyword }}&category={{ selected_category }}&type={{ movement_type }}&start={{ start }}&end={{ end }}&preset={{ preset }}">Next</a>
+                <a class="page-link" href="?page={{ movements.next_page_number }}&keyword={{ keyword }}&category={{ selected_category }}&type={{ movement_type }}&ref_type={{ ref_type }}&start={{ start }}&end={{ end }}&preset={{ preset }}">Next</a>
               </li>
             {% else %}
               <li class="page-item disabled"><span class="page-link">Next</span></li>
