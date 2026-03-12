@@ -182,7 +182,7 @@
                 </td>
                 <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
                 <td>{{ m.product.sku }}</td>
-                <td>{{ m.product.product_name }}</td>
+                <td><a href="{% url 'warehouse_scan' m.product.sku %}">{{ m.product.product_name }}</a></td>
                 <td>
                   {% if m.movement_type == 'IN' %}
                     <span class="badge badge-success">IN</span>
