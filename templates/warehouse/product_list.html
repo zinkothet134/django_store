@@ -1,184 +1,161 @@
-
 {% extends "base.html" %}
 {% load humanize %}
 {% block content %}
 <div class="container py-4">
-  <h2 class="text-center">Warehouse Product List</h2>
-    <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">Warehouse Product List</h2>
-    <a class="btn btn-outline-success" href="{% url 'warehouse_movements' %}">
-      <i class="fa fa-list"></i> All Movements
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Product List</h2>
+    <a class="btn btn-outline-primary" href="{% url 'warehouse_dashboard' %}">
+      <i class="fa fa-chart-bar"></i> Dashboard
     </a>
   </div>
-  <form method="GET" class="mb-3">
-  <div class="row">
 
-    <!-- Search -->
-    <div class="col-md-4">
-      <input type="text" name="keyword" class="form-control"
-             placeholder="Search SKU, name, category"
-             value="{{ keyword }}">
-    </div>
-
-    <!-- Category Filter -->
-    <div class="col-md-3">
-      <select name="category" class="form-control" onchange="this.form.submit()">
-        <option value="">All Categories</option>
-        {% for c in categories %}
-          <option value="{{ c.id }}"
-            {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>
-            {{ c.category_name }}
-          </option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <!-- Stock Filter -->
-    <div class="col-md-3">
-      <select name="stock" class="form-control" onchange="this.form.submit()">
-        <option value="">All Stock</option>
-        <option value="in" {% if stock_filter == "in" %}selected{% endif %}>In Stock</option>
-        <option value="out" {% if stock_filter == "out" %}selected{% endif %}>Out of Stock</option>
-      </select>
-    </div>
-
-    <!-- Submit -->
-    <div class="col-md-2">
-      <button type="submit" class="btn btn-primary btn-block">Filter</button>
-    </div>
-
-  </div>
-  
-</form>
-{% if products.paginator.count > 0 %}
-  <div>
-    <p class="text-success">
-      {{ products.paginator.count }} product(s) found
-    </p>
-  </div>
-  {% else %}
-  <div>
-    <p class="text-danger">
-      No product found. Please try again
-    </p>
-  </div>
-  {% endif %}
-  <table class="table table-bordered mt-3">
-    <thead>
-      <tr>
-        <th>Image</th><th>SKU</th><th>Product Name</th><th>Stock</th><th>Unit Price</th><th>Tangible Cost</th><th>QR</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for p in products %}
-      <tr>
-        <td class="text-center">
-          {% if p.images %}
-          <figure style="margin: 0;">
-            <a href="{% url 'warehouse_product_detail' p.sku %}">
-            <img src="{{ p.images.url }}" alt="{{ p.display_name }}"
-              style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px;"> </a>
-          </figure>
-          {% else %}
-          <span class="text-muted">No Image</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if p.sku %}
-            <a href="{% url 'warehouse_product_detail' p.sku %}">{{ p.sku|default:"-" }}</a>
-          {% else %}
-            {{ p.display_name }} <span class="text-danger">(Missing SKU)</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if p.sku %}
-            <a href="{% url 'warehouse_product_detail' p.sku %}">{{ p.display_name }}</a>
-          {% else %}
-            {{ p.display_name }} <span class="text-danger">(Missing SKU)</span>
-          {% endif %}
-        </td>
-
-        <td>
-          {% if p.stock > 10 %}
-            <a class="text-success">{{ p.stock }}</a>
-          {% elif p.stock > 0 %}
-            <span class="badge badge-warning">Low stock ({{ p.stock }})</span>
-          {% else %}
-            <span class="badge badge-danger">Out of stock</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if p.stock > 0 %}
-            <span class="text-success">MMK {{ p.price|intcomma }}</span>
-          {% else %}
-            <span class="text-muted">N/A</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if p.stock > 0 %}
-            <span class="text-success">MMK {{ p.total_value|intcomma }}</span>
-          {% else %}
-            <span class="text-muted">N/A</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if p.sku %}
-            <a class="btn btn-sm btn-outline-primary" href="{% url 'warehouse_print_qr' p.sku %}">Print</a>
-          {% else %}
-            <span class="text-muted">N/A</span>
-          {% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <!-- pagination  -->
-   {% if products.has_other_pages %}
-      <nav>
-        <ul class="pagination justify-content-center">
-
-          <!-- Previous -->
-          {% if products.has_previous %}
-            <li class="page-item">
-              <a class="page-link"
-                href="?page={{ products.previous_page_number }}&keyword={{ keyword }}&stock={{ stock_filter|default_if_none:'' }}&category={{ selected_category|default_if_none:'' }}">
-                Previous
-              </a>
-            </li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">Previous</span></li>
-          {% endif %}
-
-          <!-- Page Numbers -->
-          {% for num in products.paginator.page_range %}
-            {% if products.number == num %}
-              <li class="page-item active">
-                <span class="page-link">{{ num }}</span>
-              </li>
-            {% elif num > products.number|add:'-3' and num < products.number|add:'3' %}
-              <li class="page-item">
-                <a class="page-link"
-                  href="?page={{ num }}&keyword={{ keyword }}&stock={{ stock_filter|default_if_none:'' }}&category={{ selected_category|default_if_none:'' }}">
-                  {{ num }}
-                </a>
-              </li>
-            {% endif %}
+  <form method="get" class="mb-4">
+    <div class="row">
+      <div class="col-md-4 mb-2">
+        <input type="text" name="keyword" class="form-control" placeholder="Search SKU, name, category" value="{{ keyword }}">
+      </div>
+      <div class="col-md-3 mb-2">
+        <select name="category" class="form-control" onchange="this.form.submit()">
+          <option value="">All Categories</option>
+          {% for c in categories %}
+            <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.category_name }}</option>
           {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 mb-2">
+        <select name="stock" class="form-control" onchange="this.form.submit()">
+          <option value="">All Stock</option>
+          <option value="in" {% if stock_filter == "in" %}selected{% endif %}>In Stock</option>
+          <option value="out" {% if stock_filter == "out" %}selected{% endif %}>Out of Stock</option>
+        </select>
+      </div>
+      <div class="col-md-2 mb-2">
+        <button type="submit" class="btn btn-primary btn-block">Go</button>
+      </div>
+    </div>
+  </form>
 
-          <!-- Next -->
-          {% if products.has_next %}
+  {% if products.paginator.count > 0 %}
+    <p class="text-success">{{ products.paginator.count }} product(s) found</p>
+  {% else %}
+    <p class="text-danger">No product found.</p>
+  {% endif %}
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Image</th>
+              <th>SKU</th>
+              <th>Product Name</th>
+              <th>Category</th>
+              <th>Stock</th>
+              <th>Retail Price</th>
+              <th>Wholesale Price</th>
+              <th>Retail IN</th>
+              <th>Retail OUT</th>
+              <th>Retail NET</th>
+              <th>Wholesale IN</th>
+              <th>Wholesale OUT</th>
+              <th>Wholesale NET</th>
+              <th>QR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in products %}
+              <tr>
+                <td class="text-center">
+                  {% if p.images %}
+                    <a href="{% url 'warehouse_product_detail' p.sku %}">
+                      <img src="{{ p.images.url }}" alt="{{ p.display_name }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px;">
+                    </a>
+                  {% else %}
+                    <span class="text-muted">No Image</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if p.sku %}
+                    <a href="{% url 'warehouse_product_detail' p.sku %}">{{ p.sku }}</a>
+                  {% else %}
+                    <span class="text-danger">Missing SKU</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if p.sku %}
+                    <a href="{% url 'warehouse_product_detail' p.sku %}">{{ p.display_name }}</a>
+                  {% else %}
+                    {{ p.display_name }}
+                  {% endif %}
+                </td>
+                <td>{{ p.category.category_name }}</td>
+                <td>
+                  {% if p.stock > 10 %}
+                    <span class="text-success">{{ p.stock }}</span>
+                  {% elif p.stock > 0 %}
+                    <span class="badge badge-warning">Low stock ({{ p.stock }})</span>
+                  {% else %}
+                    <span class="badge badge-danger">Out of stock</span>
+                  {% endif %}
+                </td>
+                <td>MMK {{ p.price|intcomma }}</td>
+                <td>MMK {{ p.wholesale_price|intcomma }}</td>
+                <td>{{ p.retail_in|default:0 }}</td>
+                <td>{{ p.retail_out|default:0 }}</td>
+                <td>{{ p.retail_net|default:0 }}</td>
+                <td>{{ p.wholesale_in|default:0 }}</td>
+                <td>{{ p.wholesale_out|default:0 }}</td>
+                <td>{{ p.wholesale_net|default:0 }}</td>
+                <td>
+                  {% if p.sku %}
+                    <a class="btn btn-sm btn-outline-primary" href="{% url 'warehouse_print_qr' p.sku %}">Print</a>
+                  {% else %}
+                    <span class="text-muted">N/A</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="14" class="text-center text-muted">No product records found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if products.has_other_pages %}
+    <nav class="mt-3">
+      <ul class="pagination justify-content-center">
+        {% if products.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ products.previous_page_number }}&keyword={{ keyword }}&stock={{ stock_filter|default_if_none:'' }}&category={{ selected_category|default_if_none:'' }}">Previous</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">Previous</span></li>
+        {% endif %}
+
+        {% for num in products.paginator.page_range %}
+          {% if products.number == num %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+          {% elif num > products.number|add:'-3' and num < products.number|add:'3' %}
             <li class="page-item">
-              <a class="page-link"
-                href="?page={{ products.next_page_number }}&keyword={{ keyword }}&stock={{ stock_filter|default_if_none:'' }}&category={{ selected_category|default_if_none:'' }}">
-                Next
-              </a>
+              <a class="page-link" href="?page={{ num }}&keyword={{ keyword }}&stock={{ stock_filter|default_if_none:'' }}&category={{ selected_category|default_if_none:'' }}">{{ num }}</a>
             </li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">Next</span></li>
           {% endif %}
+        {% endfor %}
 
-        </ul>
-      </nav>
-{% endif %}
+        {% if products.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ products.next_page_number }}&keyword={{ keyword }}&stock={{ stock_filter|default_if_none:'' }}&category={{ selected_category|default_if_none:'' }}">Next</a>
+          </li>
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">Next</span></li>
+        {% endif %}
+      </ul>
+    </nav>
+  {% endif %}
 </div>
 {% endblock %}

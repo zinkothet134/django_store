@@ -2,10 +2,14 @@
 {% load humanize %}
 {% block content %}
 <div class="container py-4">
-
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">Warehouse Dashboard</h2>
-    <a href="{% url 'warehouse_products' %}" class="btn btn-primary">View Products</a>
+    <div class="d-flex gap-2">
+      <a href="{% url 'warehouse_products' %}" class="btn btn-primary">View Products</a>
+      <a href="{% url 'warehouse_retail_partition_list' %}" class="btn btn-outline-success">
+        <i class="fa fa-layer-group"></i> Retail Partition
+      </a>
+    </div>
   </div>
 
   <div class="row mt-3">
@@ -23,117 +27,324 @@
     </div>
   </div>
 
-  <!-- Date range (affects both charts) -->
   <form method="get" class="card p-3 mt-4">
-    <div class="row align-items-end">
+    <div class="row align-items-end g-2">
       <div class="col-md-3">
+        <label class="mb-1">Keyword</label>
+        <input type="text" name="keyword" class="form-control" value="{{ keyword }}" placeholder="SKU, name, category">
+      </div>
+      <div class="col-md-2">
+        <label class="mb-1">Category</label>
+        <select name="category" class="form-control">
+          <option value="">All Categories</option>
+          {% for c in categories %}
+            <option value="{{ c.id }}" {% if selected_category == c.id|stringformat:"s" %}selected{% endif %}>{{ c.category_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="mb-1">Stock</label>
+        <select name="stock" class="form-control">
+          <option value="">All Stock</option>
+          <option value="in" {% if stock_filter == "in" %}selected{% endif %}>In Stock</option>
+          <option value="out" {% if stock_filter == "out" %}selected{% endif %}>Out of Stock</option>
+        </select>
+      </div>
+      <div class="col-md-2">
         <label class="mb-1">Start date</label>
         <input type="date" name="start" class="form-control" value="{{ start }}">
       </div>
-      <div class="col-md-3">
+      <div class="col-md-2">
         <label class="mb-1">End date</label>
         <input type="date" name="end" class="form-control" value="{{ end }}">
       </div>
-      <div class="col-md-6 d-flex gap-2">
-        <button class="btn btn-primary" type="submit">Apply</button>
-        <a class="btn btn-outline-secondary" href="{% url 'warehouse_dashboard' %}">Default (Last 15 Days)</a>
+      <div class="col-md-1 d-grid">
+        <button class="btn btn-primary" type="submit">Go</button>
       </div>
     </div>
     <small class="text-muted d-block mt-2">
-      Default shows last 15 days. Use date range to review daily, weekly, monthly periods.
+      Retail summary uses retail partition transfer / sale / return flow. Wholesale summary uses wholesale OUT flow and wholesale income.
     </small>
   </form>
 
   <div class="row mt-4 g-3">
-    <!-- Horizontal Bar Chart -->
+    <div class="col-md-6">
+      <div class="card p-3 h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="text-primary mb-0">Retail Summary</h4>
+          <span class="text-muted">Partition-based</span>
+        </div>
+        <div class="row text-center g-2">
+          <div class="col-4">
+            <div class="border rounded p-2">
+              <div class="text-muted small">Transferred</div>
+              <div class="fw-bold text-primary">{{ retail_total_in|intcomma }}</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded p-2">
+              <div class="text-muted small">Sold</div>
+              <div class="fw-bold text-danger">{{ retail_total_out|intcomma }}</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded p-2">
+              <div class="text-muted small">Net</div>
+              <div class="fw-bold">{{ retail_net_total|intcomma }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card p-3 h-100">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="text-success mb-0">Wholesale Summary</h4>
+          <span class="text-muted">Movement OUT based</span>
+        </div>
+        <div class="row text-center g-2">
+          <div class="col-4">
+            <div class="border rounded p-2">
+              <div class="text-muted small">IN</div>
+              <div class="fw-bold text-success">{{ wholesale_total_in|intcomma }}</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded p-2">
+              <div class="text-muted small">OUT</div>
+              <div class="fw-bold text-danger">{{ wholesale_total_out|intcomma }}</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="border rounded p-2">
+              <div class="text-muted small">Net</div>
+              <div class="fw-bold">{{ wholesale_net_total|intcomma }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4 g-3">
+    <div class="col-md-12">
+      <h4 class="text-primary">Retail Charts</h4>
+    </div>
+
     <div class="col-md-5">
       <div class="card p-3 h-100">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h5 class="mb-0">Top OUT Products (Qty)</h5>
-          <small class="text-muted">{{ start }} → {{ end }}</small>
+        <h6>Retail Partition Top Sold Products (Qty)</h6>
+        <div style="height: 300px;">
+          <canvas id="retailBarChart"></canvas>
+          {% if not retail_bar_labels %}
+            <p class="text-muted mt-3 mb-0">No retail partition sale records in this date range.</p>
+          {% endif %}
         </div>
-        <div style="height: 320px;">
-          <canvas id="barOutProducts"></canvas>
-        </div>
-        {% if not bar_labels %}
-          <p class="text-muted mt-3 mb-0">No OUT records in this date range.</p>
-        {% endif %}
       </div>
     </div>
 
-    <!-- Line Chart -->
     <div class="col-md-7">
       <div class="card p-3 h-100">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h5 class="mb-0">Daily OUT Qty & Income</h5>
-          <small class="text-muted">{{ start }} → {{ end }}</small>
+        <h6>Retail Partition Daily Sold Qty & Income</h6>
+        <div style="height: 300px;">
+          <canvas id="retailLineChart"></canvas>
+          {% if not retail_line_labels %}
+            <p class="text-muted mt-3 mb-0">No retail partition income records in this date range.</p>
+          {% endif %}
         </div>
-        <div style="height: 320px;">
-          <canvas id="lineDailyOut"></canvas>
-        </div>
-        {% if not line_labels %}
-          <p class="text-muted mt-3 mb-0">No OUT records in this date range.</p>
-        {% endif %}
       </div>
     </div>
   </div>
 
-  <div class="text-center p-3">
-    <a href="{% url 'warehouse_products' %}" class="btn btn-primary mt-3">View Products</a>
-  </div>
+  <div class="row mt-4 g-3">
+    <div class="col-md-12">
+      <h4 class="text-success">Wholesale Charts</h4>
+    </div>
 
+    <div class="col-md-5">
+      <div class="card p-3 h-100">
+        <h6>Wholesale Top OUT Products (Qty)</h6>
+        <div style="height: 300px;">
+          <canvas id="wholesaleBarChart"></canvas>
+          {% if not wholesale_bar_labels %}
+            <p class="text-muted mt-3 mb-0">No wholesale OUT records in this date range.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-7">
+      <div class="card p-3 h-100">
+        <h6>Wholesale Daily OUT Qty & Income</h6>
+        <div style="height: 300px;">
+          <canvas id="wholesaleLineChart"></canvas>
+          {% if not wholesale_line_labels %}
+            <p class="text-muted mt-3 mb-0">No wholesale OUT income records in this date range.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- Chart.js (CDN) -->
+{{ retail_bar_labels|json_script:"retail-bar-labels-data" }}
+{{ retail_bar_qty|json_script:"retail-bar-qty-data" }}
+{{ retail_line_labels|json_script:"retail-line-labels-data" }}
+{{ retail_line_qty|json_script:"retail-line-qty-data" }}
+{{ retail_line_income|json_script:"retail-line-income-data" }}
+{{ wholesale_bar_labels|json_script:"wholesale-bar-labels-data" }}
+{{ wholesale_bar_qty|json_script:"wholesale-bar-qty-data" }}
+{{ wholesale_line_labels|json_script:"wholesale-line-labels-data" }}
+{{ wholesale_line_qty|json_script:"wholesale-line-qty-data" }}
+{{ wholesale_line_income|json_script:"wholesale-line-income-data" }}
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  const barLabels = {{ bar_labels|safe }};
-  const barQty = {{ bar_qty|safe }};
+const retailBarLabels = JSON.parse(document.getElementById('retail-bar-labels-data').textContent || '[]');
+const retailBarQty = JSON.parse(document.getElementById('retail-bar-qty-data').textContent || '[]');
+const retailLineLabels = JSON.parse(document.getElementById('retail-line-labels-data').textContent || '[]');
+const retailLineQty = JSON.parse(document.getElementById('retail-line-qty-data').textContent || '[]');
+const retailLineIncome = JSON.parse(document.getElementById('retail-line-income-data').textContent || '[]');
+const wholesaleBarLabels = JSON.parse(document.getElementById('wholesale-bar-labels-data').textContent || '[]');
+const wholesaleBarQty = JSON.parse(document.getElementById('wholesale-bar-qty-data').textContent || '[]');
+const wholesaleLineLabels = JSON.parse(document.getElementById('wholesale-line-labels-data').textContent || '[]');
+const wholesaleLineQty = JSON.parse(document.getElementById('wholesale-line-qty-data').textContent || '[]');
+const wholesaleLineIncome = JSON.parse(document.getElementById('wholesale-line-income-data').textContent || '[]');
 
-  const lineLabels = {{ line_labels|safe }};
-  const lineQty = {{ line_qty|safe }};
-  const lineIncome = {{ line_income|safe }};
+if (document.getElementById('retailBarChart') && retailBarLabels.length) {
+  new Chart(document.getElementById('retailBarChart'), {
+    type: 'bar',
+    data: {
+      labels: retailBarLabels,
+      datasets: [{
+        label: 'Retail Partition Sold Qty',
+        data: retailBarQty,
+        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { x: { beginAtZero: true } }
+    }
+  });
+}
 
-  if (document.getElementById('barOutProducts')) {
-    new Chart(document.getElementById('barOutProducts'), {
-      type: 'bar',
-      data: {
-        labels: barLabels,
-        datasets: [{
-          label: 'OUT Qty',
-          data: barQty,
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: true } },
-        scales: { x: { beginAtZero: true } }
+if (document.getElementById('retailLineChart') && retailLineLabels.length) {
+  new Chart(document.getElementById('retailLineChart'), {
+    type: 'line',
+    data: {
+      labels: retailLineLabels,
+      datasets: [
+        {
+          label: 'Retail Partition Sold Qty',
+          data: retailLineQty,
+          yAxisID: 'yQty',
+          borderColor: 'rgba(54, 162, 235, 1)',
+          backgroundColor: 'rgba(54, 162, 235, 0.15)',
+          tension: 0.25
+        },
+        {
+          label: 'Retail Partition Income',
+          data: retailLineIncome,
+          yAxisID: 'yIncome',
+          borderColor: 'rgba(255, 159, 64, 1)',
+          backgroundColor: 'rgba(255, 159, 64, 0.15)',
+          tension: 0.25
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        yQty: { beginAtZero: true, position: 'left', title: { display: true, text: 'Sold Qty' } },
+        yIncome: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Income (MMK)' } }
       }
-    });
-  }
+    }
+  });
+}
 
-  if (document.getElementById('lineDailyOut')) {
-    new Chart(document.getElementById('lineDailyOut'), {
-      type: 'line',
-      data: {
-        labels: lineLabels,
-        datasets: [
-          { label: 'OUT Qty', data: lineQty, yAxisID: 'yQty', tension: 0.25 },
-          { label: 'Income (MMK)', data: lineIncome, yAxisID: 'yIncome', tension: 0.25 }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: true } },
-        scales: {
-          yQty: { beginAtZero: true, position: 'left', title: { display: true, text: 'Qty' } },
-          yIncome: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'MMK' } }
+if (document.getElementById('wholesaleBarChart') && wholesaleBarLabels.length) {
+  new Chart(document.getElementById('wholesaleBarChart'), {
+    type: 'bar',
+    data: {
+      labels: wholesaleBarLabels,
+      datasets: [{
+        label: 'Wholesale OUT Qty',
+        data: wholesaleBarQty,
+        backgroundColor: 'rgba(40, 167, 69, 0.6)',
+        borderColor: 'rgba(40, 167, 69, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { x: { beginAtZero: true } }
+    }
+  });
+}
+
+if (document.getElementById('wholesaleLineChart') && wholesaleLineLabels.length) {
+  new Chart(document.getElementById('wholesaleLineChart'), {
+    type: 'line',
+    data: {
+      labels: wholesaleLineLabels,
+      datasets: [
+        {
+          label: 'Wholesale OUT Qty',
+          data: wholesaleLineQty.map(v => Number(v || 0)),
+          yAxisID: 'yQty',
+          borderColor: 'rgba(40, 167, 69, 1)',
+          backgroundColor: 'rgba(40, 167, 69, 0.12)',
+          borderWidth: 3,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          fill: false,
+          tension: 0.25,
+          spanGaps: true
+        },
+        {
+          label: 'Wholesale Income',
+          data: wholesaleLineIncome.map(v => Number(v || 0)),
+          yAxisID: 'yIncome',
+          borderColor: 'rgba(220, 53, 69, 1)',
+          backgroundColor: 'rgba(220, 53, 69, 0.12)',
+          borderWidth: 3,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: false,
+          tension: 0.25,
+          spanGaps: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        yQty: {
+          beginAtZero: true,
+          position: 'left',
+          title: { display: true, text: 'OUT Qty' }
+        },
+        yIncome: {
+          beginAtZero: true,
+          position: 'right',
+          title: { display: true, text: 'Income (MMK)' },
+          grid: { drawOnChartArea: false }
         }
       }
-    });
-  }
+    }
+  });
+}
 </script>
 {% endblock %}

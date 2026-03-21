@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404,redirect
 from django.db.models import Sum, Q, Case, When, IntegerField, F, ExpressionWrapper
 from django.db.models.functions import TruncDate
-from store.models import Product, StockMovement
+from store.models import Product, StockMovement, WholesaleMovement, RetailPartition, RetailPartitionMovement
 from category.models import Category
 from .permissions import in_group
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -10,19 +10,210 @@ from django.contrib import messages
 from django.utils.dateparse import parse_date, parse_datetime
 from django.utils import timezone
 from datetime import timedelta
+from zoneinfo import ZoneInfo
+from itertools import chain
 # Create your views here.
 
 def is_warehouse_staff(user):
     return user.is_superuser or user.is_staff or user.groups.filter(name='Warehouse Staff').exists()
 
+# @login_required
+# @user_passes_test(is_warehouse_staff)
+# def dashboard(request):
+#     products_qs = Product.objects.all().order_by('-created_at')
+#     total_products = products_qs.count()
+#     total_stock = products_qs.aggregate(total=Sum('stock'))['total'] or 0
+
+#     keyword = (request.GET.get('keyword') or '').strip()
+#     if keyword:
+#         products_qs = products_qs.filter(
+#             Q(product_name__icontains=keyword) |
+#             Q(sku__icontains=keyword) |
+#             Q(category__category_name__icontains=keyword)
+#         )
+
+#     stock_filter = (request.GET.get('stock') or '').strip()
+#     if stock_filter.lower() == 'none':
+#         stock_filter = ''
+#     if stock_filter == 'in':
+#         products_qs = products_qs.filter(stock__gt=0)
+#     elif stock_filter == 'out':
+#         products_qs = products_qs.filter(stock=0)
+
+#     category_id = (request.GET.get('category') or '').strip()
+#     if category_id.lower() == 'none':
+#         category_id = ''
+#     if category_id.isdigit():
+#         products_qs = products_qs.filter(category_id=int(category_id))
+
+#     start_str = (request.GET.get('start') or '').strip()
+#     end_str = (request.GET.get('end') or '').strip()
+
+#     today = timezone.localdate()
+#     start_date = parse_date(start_str) if start_str else (today - timedelta(days=14))
+#     end_date = parse_date(end_str) if end_str else today
+
+#     if start_date and end_date and start_date > end_date:
+#         start_date, end_date = end_date, start_date
+
+#     # Retail charts must reflect actual sales from retail partitions, not stock transfers.
+#     retail_sales_range = RetailPartitionMovement.objects.filter(
+#         created_at__date__gte=start_date,
+#         created_at__date__lte=end_date,
+#         action_type=RetailPartitionMovement.SALE,
+#     )
+#     retail_transfer_range = RetailPartitionMovement.objects.filter(
+#         created_at__date__gte=start_date,
+#         created_at__date__lte=end_date,
+#         action_type=RetailPartitionMovement.TRANSFER,
+#     )
+#     retail_return_range = RetailPartitionMovement.objects.filter(
+#         created_at__date__gte=start_date,
+#         created_at__date__lte=end_date,
+#         action_type=RetailPartitionMovement.RETURN,
+#     )
+
+#     wholesale_range = WholesaleMovement.objects.filter(
+#         created_at__date__gte=start_date,
+#         created_at__date__lte=end_date,
+#     )
+
+#     retail_top_out = (
+#         retail_sales_range
+#         .values('product__product_name')
+#         .annotate(qty_out=Sum('quantity'))
+#         .order_by('-qty_out')[:10]
+#     )
+#     retail_bar_labels = [r['product__product_name'] for r in retail_top_out]
+#     retail_bar_qty = [r['qty_out'] or 0 for r in retail_top_out]
+
+#     wholesale_top_out = (
+#         wholesale_range
+#         .filter(movement_type=WholesaleMovement.OUT)
+#         .values('product__product_name')
+#         .annotate(qty_out=Sum('quantity'))
+#         .order_by('-qty_out')[:10]
+#     )
+#     wholesale_bar_labels = [r['product__product_name'] for r in wholesale_top_out]
+#     wholesale_bar_qty = [r['qty_out'] or 0 for r in wholesale_top_out]
+
+#     retail_daily = (
+#         retail_sales_range
+#         .annotate(day=TruncDate('created_at'))
+#         .values('day')
+#         .annotate(
+#             qty_out=Sum('quantity'),
+#             income=Sum(
+#                 ExpressionWrapper(
+#                     F('quantity') * F('unit_price'),
+#                     output_field=IntegerField(),
+#                 )
+#             ),
+#         )
+#         .order_by('day')
+#     )
+#     retail_line_labels = [d['day'].strftime('%Y-%m-%d') for d in retail_daily]
+#     retail_line_qty = [d['qty_out'] or 0 for d in retail_daily]
+#     retail_line_income = [d['income'] or 0 for d in retail_daily]
+
+#     wholesale_daily = (
+#         wholesale_range
+#         .filter(movement_type=WholesaleMovement.OUT)
+#         .annotate(day=TruncDate('created_at'))
+#         .values('day')
+#         .annotate(
+#             qty_out=Sum('quantity'),
+#             income=Sum(
+#                 ExpressionWrapper(
+#                     F('quantity') * F('unit_price'),
+#                     output_field=IntegerField(),
+#                 )
+#             ),
+#         )
+#         .order_by('day')
+#     )
+#     wholesale_line_labels = [d['day'].strftime('%Y-%m-%d') for d in wholesale_daily]
+#     wholesale_line_qty = [d['qty_out'] or 0 for d in wholesale_daily]
+#     wholesale_line_income = [d['income'] or 0 for d in wholesale_daily]
+
+#     retail_total_in = retail_transfer_range.aggregate(total=Sum('quantity'))['total'] or 0
+#     retail_total_out = retail_sales_range.aggregate(total=Sum('quantity'))['total'] or 0
+#     retail_return_total = retail_return_range.aggregate(total=Sum('quantity'))['total'] or 0
+#     retail_net_total = retail_total_in - retail_total_out - retail_return_total
+
+#     wholesale_total_in = wholesale_range.filter(movement_type=WholesaleMovement.IN).aggregate(total=Sum('quantity'))['total'] or 0
+#     wholesale_total_out = wholesale_range.filter(movement_type=WholesaleMovement.OUT).aggregate(total=Sum('quantity'))['total'] or 0
+#     wholesale_net_total = wholesale_total_in - wholesale_total_out
+
+#     retail_paginator = Paginator(products_qs, 10)
+#     retail_page_number = request.GET.get('retail_page')
+#     retail_products = retail_paginator.get_page(retail_page_number)
+
+#     wholesale_paginator = Paginator(products_qs, 10)
+#     wholesale_page_number = request.GET.get('wholesale_page')
+#     wholesale_products = wholesale_paginator.get_page(wholesale_page_number)
+
+#     categories = Category.objects.all().order_by('category_name')
+
+#     context = {
+#         'total_products': total_products,
+#         'total_stock': total_stock,
+#         'keyword': keyword,
+#         'stock_filter': stock_filter,
+#         'selected_category': category_id,
+#         'categories': categories,
+#         'start': start_date.strftime('%Y-%m-%d') if start_date else '',
+#         'end': end_date.strftime('%Y-%m-%d') if end_date else '',
+#         'retail_products': retail_products,
+#         'wholesale_products': wholesale_products,
+#         'retail_total_in': retail_total_in,
+#         'retail_total_out': retail_total_out,
+#         'retail_return_total': retail_return_total,
+#         'retail_net_total': retail_net_total,
+#         'wholesale_total_in': wholesale_total_in,
+#         'wholesale_total_out': wholesale_total_out,
+#         'wholesale_net_total': wholesale_net_total,
+#         'retail_bar_labels': retail_bar_labels,
+#         'retail_bar_qty': retail_bar_qty,
+#         'retail_line_labels': retail_line_labels,
+#         'retail_line_qty': retail_line_qty,
+#         'retail_line_income': retail_line_income,
+#         'wholesale_bar_labels': wholesale_bar_labels,
+#         'wholesale_bar_qty': wholesale_bar_qty,
+#         'wholesale_line_labels': wholesale_line_labels,
+#         'wholesale_line_qty': wholesale_line_qty,
+#         'wholesale_line_income': wholesale_line_income,
+#     }
+#     return render(request, 'warehouse/dashboard.html', context)
 @login_required
 @user_passes_test(is_warehouse_staff)
-# @in_group('Warehouse Staff')
 def dashboard(request):
-    total_products = Product.objects.count()
-    total_stock = Product.objects.aggregate(total=Sum('stock'))['total'] or 0
+    products_qs = Product.objects.all().order_by('-created_at')
+    total_products = products_qs.count()
+    total_stock = products_qs.aggregate(total=Sum('stock'))['total'] or 0
 
-    # ---- Date range (default last 15 days) ----
+    keyword = (request.GET.get('keyword') or '').strip()
+    if keyword:
+        products_qs = products_qs.filter(
+            Q(product_name__icontains=keyword) |
+            Q(sku__icontains=keyword) |
+            Q(category__category_name__icontains=keyword)
+        )
+
+    stock_filter = (request.GET.get('stock') or '').strip()
+    if stock_filter.lower() == 'none':
+        stock_filter = ''
+    if stock_filter == 'in':
+        products_qs = products_qs.filter(stock__gt=0)
+    elif stock_filter == 'out':
+        products_qs = products_qs.filter(stock=0)
+
+    category_id = (request.GET.get('category') or '').strip()
+    if category_id.lower() == 'none':
+        category_id = ''
+    if category_id.isdigit():
+        products_qs = products_qs.filter(category_id=int(category_id))
+
     start_str = (request.GET.get('start') or '').strip()
     end_str = (request.GET.get('end') or '').strip()
 
@@ -30,56 +221,226 @@ def dashboard(request):
     start_date = parse_date(start_str) if start_str else (today - timedelta(days=14))
     end_date = parse_date(end_str) if end_str else today
 
-    # Swap if reversed
     if start_date and end_date and start_date > end_date:
         start_date, end_date = end_date, start_date
 
-    movements_range = StockMovement.objects.filter(created_at__date__gte=start_date, created_at__date__lte=end_date)
+    # -----------------------------
+    # RETAIL = 2 pathways
+    # 1) partition sale
+    # 2) direct retail sale from warehouse
+    # -----------------------------
+    retail_partition_sales = RetailPartitionMovement.objects.filter(
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date,
+        action_type=RetailPartitionMovement.SALE,
+    )
 
-    # ---- Horizontal bar: Top OUT products by quantity (within range) ----
-    top_out = (
-        movements_range
-        .filter(movement_type=StockMovement.OUT)
+    retail_direct_sales = StockMovement.objects.filter(
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date,
+        movement_type=StockMovement.OUT,
+        ref_type__in=['CUS_INV', 'CUS_REQ'],
+    )
+
+    retail_transfer_range = RetailPartitionMovement.objects.filter(
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date,
+        action_type=RetailPartitionMovement.TRANSFER,
+    )
+
+    retail_return_range = RetailPartitionMovement.objects.filter(
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date,
+        action_type=RetailPartitionMovement.RETURN,
+    )
+
+    wholesale_range = WholesaleMovement.objects.filter(
+        created_at__date__gte=start_date,
+        created_at__date__lte=end_date,
+    )
+
+    # -----------------------------
+    # Retail top sold products
+    # combine partition sale + direct retail warehouse sale
+    # -----------------------------
+    retail_product_totals = {}
+
+    for row in (
+        retail_partition_sales
+        .values('product__product_name')
+        .annotate(qty_out=Sum('quantity'))
+    ):
+        name = row['product__product_name']
+        retail_product_totals[name] = retail_product_totals.get(name, 0) + (row['qty_out'] or 0)
+
+    for row in (
+        retail_direct_sales
+        .values('product__product_name')
+        .annotate(qty_out=Sum('quantity'))
+    ):
+        name = row['product__product_name']
+        retail_product_totals[name] = retail_product_totals.get(name, 0) + (row['qty_out'] or 0)
+
+    retail_top_out = sorted(
+        retail_product_totals.items(),
+        key=lambda x: x[1],
+        reverse=True
+    )[:10]
+
+    retail_bar_labels = [name for name, qty in retail_top_out]
+    retail_bar_qty = [qty for name, qty in retail_top_out]
+
+    wholesale_top_out = (
+        wholesale_range
+        .filter(movement_type=WholesaleMovement.OUT)
         .values('product__product_name')
         .annotate(qty_out=Sum('quantity'))
         .order_by('-qty_out')[:10]
     )
-    bar_labels = [r['product__product_name'] for r in top_out]
-    bar_qty = [r['qty_out'] or 0 for r in top_out]
+    wholesale_bar_labels = [r['product__product_name'] for r in wholesale_top_out]
+    wholesale_bar_qty = [r['qty_out'] or 0 for r in wholesale_top_out]
 
-    # ---- Line chart: Daily OUT quantity + daily OUT income (qty * unit_price) ----
-    daily = (
-        movements_range
-        .filter(movement_type=StockMovement.OUT)
+    # -----------------------------
+    # Retail daily qty + income
+    # combine partition sale + direct retail warehouse sale
+    # -----------------------------
+    retail_daily_map = {}
+
+    partition_daily = (
+        retail_partition_sales
         .annotate(day=TruncDate('created_at'))
         .values('day')
         .annotate(
             qty_out=Sum('quantity'),
-            income=Sum(ExpressionWrapper(F('quantity') * F('unit_price'), output_field=IntegerField())),
+            income=Sum(
+                ExpressionWrapper(
+                    F('quantity') * F('unit_price'),
+                    output_field=IntegerField(),
+                )
+            ),
         )
         .order_by('day')
     )
 
-    line_labels = [d['day'].strftime('%Y-%m-%d') for d in daily]
-    line_qty = [d['qty_out'] or 0 for d in daily]
-    line_income = [d['income'] or 0 for d in daily]
+    direct_daily = (
+        retail_direct_sales
+        .annotate(day=TruncDate('created_at'))
+        .values('day')
+        .annotate(
+            qty_out=Sum('quantity'),
+            income=Sum(
+                ExpressionWrapper(
+                    F('quantity') * F('unit_price'),
+                    output_field=IntegerField(),
+                )
+            ),
+        )
+        .order_by('day')
+    )
+
+    for row in partition_daily:
+        day = row['day']
+        retail_daily_map.setdefault(day, {'qty_out': 0, 'income': 0})
+        retail_daily_map[day]['qty_out'] += row['qty_out'] or 0
+        retail_daily_map[day]['income'] += row['income'] or 0
+
+    for row in direct_daily:
+        day = row['day']
+        retail_daily_map.setdefault(day, {'qty_out': 0, 'income': 0})
+        retail_daily_map[day]['qty_out'] += row['qty_out'] or 0
+        retail_daily_map[day]['income'] += row['income'] or 0
+
+    retail_daily_sorted = sorted(retail_daily_map.items(), key=lambda x: x[0])
+
+    retail_line_labels = [day.strftime('%Y-%m-%d') for day, _ in retail_daily_sorted]
+    retail_line_qty = [vals['qty_out'] for _, vals in retail_daily_sorted]
+    retail_line_income = [vals['income'] for _, vals in retail_daily_sorted]
+
+    wholesale_daily = (
+        wholesale_range
+        .filter(movement_type=WholesaleMovement.OUT)
+        .annotate(day=TruncDate('created_at'))
+        .values('day')
+        .annotate(
+            qty_out=Sum('quantity'),
+            income=Sum(
+                ExpressionWrapper(
+                    F('quantity') * F('unit_price'),
+                    output_field=IntegerField(),
+                )
+            ),
+        )
+        .order_by('day')
+    )
+    wholesale_line_labels = [d['day'].strftime('%Y-%m-%d') for d in wholesale_daily]
+    wholesale_line_qty = [d['qty_out'] or 0 for d in wholesale_daily]
+    wholesale_line_income = [d['income'] or 0 for d in wholesale_daily]
+
+    # -----------------------------
+    # Retail summary
+    # transferred / sold / returned
+    # sold includes both pathways
+    # -----------------------------
+    retail_partition_sale_total = retail_partition_sales.aggregate(total=Sum('quantity'))['total'] or 0
+    retail_direct_sale_total = retail_direct_sales.aggregate(total=Sum('quantity'))['total'] or 0
+
+    retail_total_in = retail_transfer_range.aggregate(total=Sum('quantity'))['total'] or 0
+    retail_total_out = retail_partition_sale_total + retail_direct_sale_total
+    retail_return_total = retail_return_range.aggregate(total=Sum('quantity'))['total'] or 0
+    retail_net_total = retail_total_in - retail_total_out - retail_return_total
+
+    wholesale_total_in = wholesale_range.filter(
+        movement_type=WholesaleMovement.IN
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+    wholesale_total_out = wholesale_range.filter(
+        movement_type=WholesaleMovement.OUT
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+    wholesale_net_total = wholesale_total_in - wholesale_total_out
+
+    retail_paginator = Paginator(products_qs, 10)
+    retail_page_number = request.GET.get('retail_page')
+    retail_products = retail_paginator.get_page(retail_page_number)
+
+    wholesale_paginator = Paginator(products_qs, 10)
+    wholesale_page_number = request.GET.get('wholesale_page')
+    wholesale_products = wholesale_paginator.get_page(wholesale_page_number)
+
+    categories = Category.objects.all().order_by('category_name')
 
     context = {
         'total_products': total_products,
         'total_stock': total_stock,
-
-        # date range
+        'keyword': keyword,
+        'stock_filter': stock_filter,
+        'selected_category': category_id,
+        'categories': categories,
         'start': start_date.strftime('%Y-%m-%d') if start_date else '',
         'end': end_date.strftime('%Y-%m-%d') if end_date else '',
+        'retail_products': retail_products,
+        'wholesale_products': wholesale_products,
 
-        # bar chart
-        'bar_labels': bar_labels,
-        'bar_qty': bar_qty,
+        'retail_total_in': retail_total_in,
+        'retail_total_out': retail_total_out,
+        'retail_return_total': retail_return_total,
+        'retail_net_total': retail_net_total,
 
-        # line chart
-        'line_labels': line_labels,
-        'line_qty': line_qty,
-        'line_income': line_income,
+        'wholesale_total_in': wholesale_total_in,
+        'wholesale_total_out': wholesale_total_out,
+        'wholesale_net_total': wholesale_net_total,
+
+        'retail_bar_labels': retail_bar_labels,
+        'retail_bar_qty': retail_bar_qty,
+        'retail_line_labels': retail_line_labels,
+        'retail_line_qty': retail_line_qty,
+        'retail_line_income': retail_line_income,
+
+        'wholesale_bar_labels': wholesale_bar_labels,
+        'wholesale_bar_qty': wholesale_bar_qty,
+        'wholesale_line_labels': wholesale_line_labels,
+        'wholesale_line_qty': wholesale_line_qty,
+        'wholesale_line_income': wholesale_line_income,
     }
     return render(request, 'warehouse/dashboard.html', context)
 
@@ -126,7 +487,9 @@ def product_list(request):
         'categories': categories, 
         'keyword': keyword,
         'stock_filter': stock_filter,
-        'selected_category':category_id,
+        'selected_category': category_id,
+        'retail_label': 'Retail',
+        'wholesale_label': 'Wholesale',
     }
     return render(request, 'warehouse/product_list.html', context)
 
@@ -173,6 +536,227 @@ def product_detail(request, sku):
     }
     return render(request, 'warehouse/product_detail.html', context)
 
+def _get_partition_product_balance(partition, product):
+    transferred = partition.movements.filter(
+        product=product,
+        action_type=RetailPartitionMovement.TRANSFER
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+    sold = partition.movements.filter(
+        product=product,
+        action_type=RetailPartitionMovement.SALE
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+    returned = partition.movements.filter(
+        product=product,
+        action_type=RetailPartitionMovement.RETURN
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+    return transferred - sold - returned
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def retail_partition_list(request):
+    partitions = RetailPartition.objects.select_related('staff', 'created_by').order_by('-created_at')
+
+    status = (request.GET.get('status') or '').strip().upper()
+    if status in {RetailPartition.OPEN, RetailPartition.CLOSED, RetailPartition.CANCELLED}:
+        partitions = partitions.filter(status=status)
+
+    context = {
+        'partitions': partitions,
+        'selected_status': status,
+    }
+    return render(request, 'warehouse/retail_partition_list.html', context)
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def retail_partition_create(request):
+    error = None
+
+    if request.method == 'POST':
+        start_date_raw = (request.POST.get('start_date') or '').strip()
+        end_date_raw = (request.POST.get('end_date') or '').strip()
+        staff_id = (request.POST.get('staff_id') or '').strip()
+        remark = (request.POST.get('remark') or '').strip()
+
+        start_date = parse_date(start_date_raw) if start_date_raw else timezone.localdate()
+        end_date = parse_date(end_date_raw) if end_date_raw else None
+
+        if staff_id and not staff_id.isdigit():
+            error = 'Invalid staff selected.'
+        elif start_date and end_date and start_date > end_date:
+            error = 'End date must be on or after start date.'
+        else:
+            partition = RetailPartition.objects.create(
+                staff_id=int(staff_id) if staff_id else None,
+                start_date=start_date,
+                end_date=end_date,
+                remark=remark,
+                created_by=request.user,
+            )
+            messages.success(request, f'Retail partition {partition.code} created successfully.')
+            return redirect('warehouse_retail_partition_detail', partition_id=partition.id)
+
+    context = {
+        'error': error,
+        'today': timezone.localdate(),
+    }
+    return render(request, 'warehouse/retail_partition_form.html', context)
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def retail_partition_detail(request, partition_id):
+    partition = get_object_or_404(RetailPartition, id=partition_id)
+    products = Product.objects.all().order_by('product_name')
+    error = None
+    status_error = None
+
+    if request.method == 'POST':
+        form_type = (request.POST.get('form_type') or '').strip()
+
+        if form_type == 'status_update':
+            new_status = (request.POST.get('status') or '').strip().upper()
+            allowed_statuses = {
+                RetailPartition.OPEN,
+                RetailPartition.CLOSED,
+                RetailPartition.CANCELLED,
+            }
+
+            if new_status not in allowed_statuses:
+                status_error = 'Invalid partition status.'
+            else:
+                partition.status = new_status
+                if new_status == RetailPartition.CLOSED and not partition.end_date:
+                    partition.end_date = timezone.localdate()
+                partition.save(update_fields=['status', 'end_date'])
+                messages.success(request, f'Partition status updated to {partition.get_status_display()}.')
+                return redirect('warehouse_retail_partition_detail', partition_id=partition.id)
+
+        elif partition.status != RetailPartition.OPEN:
+            error = 'This partition is not open. Re-open it first to record movements.'
+        else:
+            action_type = (request.POST.get('action_type') or '').strip().upper()
+            product_id = (request.POST.get('product_id') or '').strip()
+            quantity_raw = (request.POST.get('quantity') or '').strip()
+            ref_no = (request.POST.get('ref_no') or '').strip()
+            remark = (request.POST.get('remark') or '').strip()
+
+            try:
+                quantity = int(quantity_raw)
+            except (TypeError, ValueError):
+                quantity = 0
+
+            product = Product.objects.filter(id=product_id).first() if product_id.isdigit() else None
+
+            if action_type not in {
+                RetailPartitionMovement.TRANSFER,
+                RetailPartitionMovement.SALE,
+                RetailPartitionMovement.RETURN,
+            }:
+                error = 'Invalid partition action.'
+            elif not product:
+                error = 'Please choose a product.'
+            elif quantity <= 0:
+                error = 'Quantity must be greater than 0.'
+            else:
+                current_partition_balance = _get_partition_product_balance(partition, product)
+
+                if action_type == RetailPartitionMovement.TRANSFER and quantity > product.stock:
+                    error = f'Not enough warehouse stock. Current stock is {product.stock}.'
+                elif action_type in {RetailPartitionMovement.SALE, RetailPartitionMovement.RETURN} and quantity > current_partition_balance:
+                    error = f'Not enough partition stock. Current partition balance is {current_partition_balance}.'
+
+            if not error:
+                unit_price = product.price
+
+                RetailPartitionMovement.objects.create(
+                    partition=partition,
+                    product=product,
+                    action_type=action_type,
+                    quantity=quantity,
+                    unit_price=unit_price,
+                    ref_no=ref_no,
+                    remark=remark,
+                    created_by=request.user,
+                )
+
+                if action_type == RetailPartitionMovement.TRANSFER:
+                    product.stock -= quantity
+                    StockMovement.objects.create(
+                        product=product,
+                        movement_type=StockMovement.OUT,
+                        unit_price=product.price,
+                        quantity=quantity,
+                        ref_type='RET_PART',
+                        ref_no=partition.code,
+                        remark=remark or f'Transferred to retail partition {partition.code}',
+                        created_by=request.user,
+                    )
+                    messages.success(request, 'Stock transferred to retail partition successfully.')
+
+                elif action_type == RetailPartitionMovement.SALE:
+                    messages.success(request, 'Retail partition sale recorded successfully.')
+
+                elif action_type == RetailPartitionMovement.RETURN:
+                    product.stock += quantity
+                    StockMovement.objects.create(
+                        product=product,
+                        movement_type=StockMovement.IN,
+                        unit_price=product.price,
+                        quantity=quantity,
+                        ref_type='RET_RETURN',
+                        ref_no=partition.code,
+                        remark=remark or f'Returned from retail partition {partition.code}',
+                        created_by=request.user,
+                    )
+                    messages.success(request, 'Stock returned from retail partition successfully.')
+
+                product.save(update_fields=['stock'])
+                return redirect('warehouse_retail_partition_detail', partition_id=partition.id)
+
+    movement_rows = []
+    for product in products:
+        transferred = partition.movements.filter(
+            product=product,
+            action_type=RetailPartitionMovement.TRANSFER
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+        sold = partition.movements.filter(
+            product=product,
+            action_type=RetailPartitionMovement.SALE
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+        returned = partition.movements.filter(
+            product=product,
+            action_type=RetailPartitionMovement.RETURN
+        ).aggregate(total=Sum('quantity'))['total'] or 0
+
+        balance = transferred - sold - returned
+
+        if transferred or sold or returned:
+            movement_rows.append({
+                'product': product,
+                'transferred': transferred,
+                'sold': sold,
+                'returned': returned,
+                'balance': balance,
+            })
+
+    partition_movements = partition.movements.select_related('product', 'created_by').order_by('-created_at')
+
+    context = {
+        'partition': partition,
+        'products': products,
+        'movement_rows': movement_rows,
+        'partition_movements': partition_movements,
+        'error': error,
+        'status_error': status_error,
+        'status_choices': RetailPartition.STATUS_CHOICES,
+        'action_types': RetailPartitionMovement.ACTION_TYPES,
+    }
+    return render(request, 'warehouse/retail_partition_detail.html', context)
+
 @login_required
 @user_passes_test(is_warehouse_staff)
 # @in_group('Warehouse Staff')
@@ -189,55 +773,59 @@ def print_qr(request, sku):
 
 @login_required
 @user_passes_test(is_warehouse_staff)
-# @in_group('Warehouse Staff')
 def scan(request, sku):
     product = get_object_or_404(Product, sku=sku)
     ref_type_choices = StockMovement.REF_TYPES
     error = None
+    mm_tz = ZoneInfo('Asia/Yangon')
+    current_mm_time = timezone.now().astimezone(mm_tz)
 
-    # Default form values (so template won’t crash on GET)
     form_values = {
+        'sale_type': 'retail',
         'action': 'IN',
         'quantity': '',
-        'created_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+        'created_at': current_mm_time.strftime('%Y-%m-%dT%H:%M'),
         'ref_type': '',
         'ref_no': '',
         'remark': '',
     }
 
-
     if request.method == 'POST':
+        sale_type = (request.POST.get('sale_type') or 'retail').strip().lower()
         action = request.POST.get('action')
-        qty = int(request.POST.get('quantity') or 0 )
         qty_raw = request.POST.get('quantity')
         created_at_raw = (request.POST.get('created_at') or '').strip()
         ref_type = (request.POST.get('ref_type') or '').strip()
         ref_no = (request.POST.get('ref_no') or '').strip()
         remark = (request.POST.get('remark') or '').strip()
 
-        # keep user inputs if validation fails
         form_values = {
+            'sale_type': sale_type,
             'action': action or 'IN',
             'quantity': qty_raw or '',
-            'created_at': created_at_raw or timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+            'created_at': created_at_raw or current_mm_time.strftime('%Y-%m-%dT%H:%M'),
             'ref_type': ref_type,
             'ref_no': ref_no,
             'remark': remark,
         }
-         # safe int conversion 
+
         try:
             qty = int(qty_raw)
-        except(TypeError, ValueError):
+        except (TypeError, ValueError):
             qty = 0
 
-        created_at = parse_datetime(created_at_raw) if created_at_raw else timezone.now()
+        created_at = parse_datetime(created_at_raw) if created_at_raw else current_mm_time
         if created_at is None and created_at_raw:
             error = 'Invalid date/time'
         elif created_at is not None and timezone.is_naive(created_at):
-            created_at = timezone.make_aware(created_at, timezone.get_current_timezone())
+            created_at = created_at.replace(tzinfo=mm_tz)
+        elif created_at is not None:
+            created_at = created_at.astimezone(mm_tz)
 
-        if qty <= 0: 
+        if qty <= 0:
             error = 'Quantity must be greater than 0'
+        elif sale_type not in ('retail', 'wholesale'):
+            error = 'Invalid sale type'
         elif action not in (StockMovement.IN, StockMovement.OUT):
             error = 'Invalid action'
         elif action == StockMovement.OUT and qty > product.stock:
@@ -245,89 +833,81 @@ def scan(request, sku):
 
         valid_ref_types = {code for code, _ in StockMovement.REF_TYPES}
         if ref_type and ref_type not in valid_ref_types:
-            error = "Invalid referrence type"
+            error = "Invalid reference type"
+
         allowed_by_action = {
             StockMovement.IN: {'SUP_INV', 'SUP_REQ', 'RET_RETURN', 'ADJ'},
             StockMovement.OUT: {'CUS_INV', 'CUS_REQ', 'RET_PART', 'ADJ'},
         }
         if not error and ref_type and ref_type not in allowed_by_action.get(action, set()):
             error = "Selected Ref Type is not allowed for this action."
-        if not error:
-            unit_price = product.price
 
-            StockMovement.objects.create(
-                product = product,
-                movement_type = action,
-                quantity = qty,
-                unit_price = unit_price,
-                ref_type = ref_type,
-                ref_no = ref_no,
-                remark = remark,
+        if not error:
+            movement_model = StockMovement if sale_type == 'retail' else WholesaleMovement
+            unit_price = product.price if sale_type == 'retail' else product.wholesale_price
+
+            movement_model.objects.create(
+                product=product,
+                movement_type=action,
+                quantity=qty,
+                unit_price=unit_price,
+                ref_type=ref_type,
+                ref_no=ref_no,
+                remark=remark,
                 created_by=request.user,
                 created_at=created_at,
             )
 
-            #update stock 
             if action == StockMovement.IN:
                 product.stock += qty
-                # product.save()
-                # return redirect('warehouse_scan', sku=sku)
-                messages.success(request, 'Stock IN recorded successfully.')
+                messages.success(request, f'{sale_type.title()} stock IN recorded successfully.')
             else:
                 product.stock -= qty
-                messages.success(request, 'Stock OUT recorded successfully.')
-            
+                messages.success(request, f'{sale_type.title()} stock OUT recorded successfully.')
+
             product.save(update_fields=['stock'])
             return redirect('warehouse_products')
-    movements_qs = StockMovement.objects.filter(product=product).order_by('-created_at')
-    # # pagination 
-    # paginator = Paginator(movements_qs, 5)
-    # page_number = request.GET.get('page')
-    # movements = paginator.get_page(page_number)
-    #         # if action == 'OUT':
-    #         #     if qty > product.stock:
-    #         #         error = 'Not enough stock'
-    #         #     else:
-    #         #         product.stock -= qty
-    #         #         product.save()
-    #         #         return redirect('warehouse_scan', sku=sku)
-    # context = {
-    #     'product': product,
-    #     'error': error,
-    #     'movements': movements,
-    #     'ref_type_choices': ref_type_choices,
-    #     'form_values': form_values,
-    # }
-    # return render(request, 'warehouse/scan.html', context)
-    movements_qs = StockMovement.objects.filter(product=product).order_by('-created_at')
 
-# Totals (all records for this product)
-    total_in = movements_qs.filter(movement_type=StockMovement.IN).aggregate(s=Sum('quantity'))['s'] or 0
-    total_out = movements_qs.filter(movement_type=StockMovement.OUT).aggregate(s=Sum('quantity'))['s'] or 0
+    retail_movements_qs = StockMovement.objects.filter(product=product).order_by('-created_at')
+    wholesale_movements_qs = WholesaleMovement.objects.filter(product=product).order_by('-created_at')
+
+    total_in = (product.retail_in or 0) + (product.wholesale_in or 0)
+    total_out = (product.retail_out or 0) + (product.wholesale_out or 0)
     net_total = total_in - total_out
 
-    # Pagination (20 per page)
-    paginator = Paginator(movements_qs, 10)
+    combined_movements = []
+    for m in retail_movements_qs:
+        m.sale_type = 'retail'
+        m.sale_type_label = 'Retail'
+        combined_movements.append(m)
+
+    for m in wholesale_movements_qs:
+        m.sale_type = 'wholesale'
+        m.sale_type_label = 'Wholesale'
+        combined_movements.append(m)
+
+    combined_movements.sort(key=lambda m: m.created_at, reverse=True)
+
+    paginator = Paginator(combined_movements, 10)
     page_number = request.GET.get('page')
     movements = paginator.get_page(page_number)
 
-    # Running balance for THIS PAGE (from current stock backwards)
     running = product.stock
     page_rows = []
-    for m in movements:  # movements is a Page object (iterable)
-        # Balance AFTER this movement happened (walking backward in time)
+    for m in movements:
         after = running
 
-        # Move backwards to compute "before"
         if m.movement_type == StockMovement.IN:
             before = running - m.quantity
         else:
             before = running + m.quantity
 
         page_rows.append({
-            "obj": m,
-            "balance_after": after,
-            "balance_before": before,
+            'obj': m,
+            'sale_type': getattr(m, 'sale_type', ''),
+            'sale_type_label': getattr(m, 'sale_type_label', ''),
+            'balance_after': after,
+            'balance_before': before,
         })
         running = before
 
@@ -335,7 +915,7 @@ def scan(request, sku):
         'product': product,
         'error': error,
         'movements': movements,
-        'rows': page_rows,              # ✅ use this in template instead of movements
+        'rows': page_rows,
         'ref_type_choices': ref_type_choices,
         'form_values': form_values,
         'total_in': total_in,

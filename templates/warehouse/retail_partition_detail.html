@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load humanize %}
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1">Retail Partition {{ partition.code }}</h2>
+      <p class="text-muted mb-0">
+        Staff: {{ partition.staff|default:"-" }} |
+        Status:
+        {% if partition.status == "OPEN" %}
+          <span class="badge bg-success">Open</span>
+        {% elif partition.status == "CLOSED" %}
+          <span class="badge bg-secondary">Closed</span>
+        {% else %}
+          <span class="badge bg-danger">Cancelled</span>
+        {% endif %}
+      </p>
+    </div>
+    <a href="{% url 'warehouse_retail_partition_list' %}" class="btn btn-outline-secondary">Back to List</a>
+  </div>
+
+  {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Transferred</p>
+          <h4 class="text-success mb-0">{{ partition.total_transferred|default:0 }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Sold</p>
+          <h4 class="text-danger mb-0">{{ partition.total_sold|default:0 }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Returned</p>
+          <h4 class="text-warning mb-0">{{ partition.total_returned|default:0 }}</h4>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <p class="text-muted mb-1">Current Balance</p>
+          <h4 class="mb-0">{{ partition.current_balance|default:0 }}</h4>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">Record Partition Action</h5>
+        </div>
+        <div class="card-body">
+          {% if partition.status != "OPEN" %}
+            <div class="alert alert-warning mb-0">This partition is not open. No new actions can be recorded.</div>
+          {% else %}
+            <form method="post">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label class="form-label">Action Type</label>
+                <select name="action_type" class="form-select" required>
+                  <option value="">Choose action</option>
+                  {% for code, label in action_types %}
+                    <option value="{{ code }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Product</label>
+                <select name="product_id" id="partition-product-select" class="form-select" required>
+                  <option value="">Choose product</option>
+                  {% for product in products %}
+                    <option value="{{ product.id }}"
+                            data-stock="{{ product.stock|default:0 }}"
+                            data-name="{{ product.display_name }}">
+                      {{ product.display_name }}{% if product.sku %} ({{ product.sku }}){% endif %}
+                    </option>
+                  {% endfor %}
+                </select>
+                <div class="mt-2 small text-muted">
+                  Warehouse Stock:
+                  <span id="selected-warehouse-stock" class="fw-bold text-success">-</span>
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Quantity</label>
+                <input type="number" name="quantity" class="form-control" min="1" required>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Ref No</label>
+                <input type="text" name="ref_no" class="form-control" placeholder="Optional reference number">
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Remark</label>
+                <textarea name="remark" class="form-control" rows="3" placeholder="Optional note"></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary w-100">Save Action</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card shadow-sm border-0 mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Product Summary in This Partition</h5>
+          <span class="text-muted">Total Records: {{ movement_rows|length }}</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Product</th>
+                  <th class="text-success">Transferred</th>
+                  <th class="text-danger">Sold</th>
+                  <th class="text-warning">Returned</th>
+                  <th>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in movement_rows %}
+                  <tr>
+                    <td>
+                      {{ row.product.display_name }}
+                      {% if row.product.sku %}
+                        <div class="small text-muted">{{ row.product.sku }}</div>
+                      {% endif %}
+                    </td>
+                    <td class="text-success">{{ row.transferred|default:0 }}</td>
+                    <td class="text-danger">{{ row.sold|default:0 }}</td>
+                    <td class="text-warning">{{ row.returned|default:0 }}</td>
+                    <td class="fw-semibold">{{ row.balance|default:0 }}</td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-4">No partition product activity yet.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm border-0">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">Movement History</h5>
+          <span class="text-muted">Total Records: {{ partition_movements|length }}</span>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Date</th>
+                  <th>Product</th>
+                  <th>Action</th>
+                  <th>Qty</th>
+                  <th>Unit Price</th>
+                  <th>Ref No</th>
+                  <th>Remark</th>
+                  <th>By</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in partition_movements %}
+                  <tr>
+                    <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
+                    <td>
+                      {{ m.product.display_name }}
+                      {% if m.product.sku %}
+                        <div class="small text-muted">{{ m.product.sku }}</div>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if m.action_type == "TRANSFER" %}
+                        <span class="badge bg-primary">Transfer</span>
+                      {% elif m.action_type == "SALE" %}
+                        <span class="badge bg-danger">Sale</span>
+                      {% else %}
+                        <span class="badge bg-warning text-dark">Return</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ m.quantity }}</td>
+                    <td>MMK {{ m.unit_price|intcomma }}</td>
+                    <td>{{ m.ref_no|default:"-" }}</td>
+                    <td>{{ m.remark|default:"-" }}</td>
+                    <td>{{ m.created_by|default:"-" }}</td>
+                  </tr>
+                {% empty %}
+                  <tr>
+                    <td colspan="8" class="text-center text-muted py-4">No movement history found.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    const productSelect = document.getElementById('partition-product-select');
+    const stockSpan = document.getElementById('selected-warehouse-stock');
+
+    if (!productSelect || !stockSpan) {
+      return;
+    }
+
+    function updateWarehouseStock() {
+      const selectedOption = productSelect.options[productSelect.selectedIndex];
+      const stock = selectedOption ? selectedOption.getAttribute('data-stock') : '';
+      stockSpan.textContent = stock && selectedOption.value ? stock : '-';
+    }
+
+    productSelect.addEventListener('change', updateWarehouseStock);
+    updateWarehouseStock();
+  })();
+</script>
+{% endblock %}

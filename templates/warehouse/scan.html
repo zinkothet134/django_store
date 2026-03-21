@@ -10,14 +10,13 @@
   </div>
 
   <div class="row align-items-stretch">
-    <!-- LEFT: STOCK MOVEMENT FORM -->
     <div class="col-md-4">
 
       <div class="text-center">
         {% if product.images %}
           <figure style="margin:0;">
             <a href="{% url 'warehouse_product_detail' product.sku %}">
-              <img src="{{ product.images.url }}" alt="{{ product.product_name }}"
+              <img src="{{ product.images.url }}" alt="{{ product.display_name }}"
                    style="width: 200px; height: 200px; object-fit: cover; border-radius: 6px;">
             </a>
           </figure>
@@ -28,7 +27,7 @@
 
       <div class="mt-3">
         <p><b>SKU:</b> {{ product.sku }}</p>
-        <p><b>Product Name:</b> {{ product.product_name }}</p>
+        <p><b>Product Name:</b> {{ product.display_name }}</p>
 
         {% if product.stock > 0 %}
           <p class="text-success"><b>Current Stock:</b> {{ product.stock }}</p>
@@ -36,7 +35,8 @@
           <p class="text-danger font-weight-bold"><b>Current Stock:</b> Out of stock</p>
         {% endif %}
 
-        <p><b>Current Unit Price:</b> MMK {{ product.price|intcomma }}</p>
+        <p><b>Retail Unit Price:</b> MMK {{ product.price|intcomma }}</p>
+        <p><b>Wholesale Unit Price:</b> MMK {{ product.wholesale_price|intcomma }}</p>
 
         {% if error %}
           <div class="alert alert-danger">{{ error }}</div>
@@ -45,6 +45,14 @@
 
       <form method="post" class="card p-3 mt-3">
         {% csrf_token %}
+
+        <div class="form-group">
+          <label>Type of Sale</label>
+          <select name="sale_type" class="form-control" required>
+            <option value="retail" {% if form_values.sale_type == "retail" %}selected{% endif %}>Retail</option>
+            <option value="wholesale" {% if form_values.sale_type == "wholesale" %}selected{% endif %}>Whole Sale</option>
+          </select>
+        </div>
 
         <div class="form-group">
           <label>Action</label>
@@ -86,8 +94,7 @@
             if (!actionSelect || !refTypeSelect) return;
 
             const placeholder = refTypeSelect.querySelector('option[value=""]');
-            const allOptions = Array.from(refTypeSelect.querySelectorAll('option'))
-              .filter(opt => opt.value !== '');
+            const allOptions = Array.from(refTypeSelect.querySelectorAll('option')).filter(opt => opt.value !== '');
 
             function rebuildRefTypes() {
               const action = actionSelect.value;
@@ -128,149 +135,59 @@
 
         <div class="form-group mt-2">
           <label>Ref No</label>
-          <input type="text" name="ref_no" class="form-control"
-                 placeholder="Invoice/Requisition number" value="{{ form_values.ref_no }}">
+          <input type="text" name="ref_no" class="form-control" placeholder="Invoice/Requisition number" value="{{ form_values.ref_no }}">
         </div>
 
         <div class="form-group mt-2">
           <label>Remark</label>
-          <textarea name="remark" class="form-control" rows="2"
-                    placeholder="Optional note...">{{ form_values.remark }}</textarea>
+          <textarea name="remark" class="form-control" rows="2" placeholder="Optional note...">{{ form_values.remark }}</textarea>
         </div>
 
         <button class="btn btn-primary mt-3" type="submit">Submit</button>
       </form>
 
     </div>
-
-    <!-- RIGHT: MOVEMENT RECORD TABLE -->
-    <div class="col-md-8 mt-5 d-flex">
-      <div class="card w-100 d-flex flex-column">
-        <div class="card-body d-flex flex-column">
-
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h4 class="mb-0">Records</h4>
-            <span class="badge badge-primary">Total: {{ movements.paginator.count }}</span>
-          </div>
-
-          <div class="row mb-3">
-            <div class="col-md-4">
-              <div class="p-2 border rounded text-center">
-                <small class="text-muted">Total IN</small><br>
-                <b class="text-success">{{ total_in }}</b>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="p-2 border rounded text-center">
-                <small class="text-muted">Total OUT</small><br>
-                <b class="text-danger">{{ total_out }}</b>
-              </div>
-            </div>
-            <div class="col-md-4">
-              <div class="p-2 border rounded text-center">
-                <small class="text-muted">Net</small><br>
-                {% if net_total > 0 %}
-                  <b class="text-success">+{{ net_total }}</b>
-                {% elif net_total < 0 %}
-                  <b class="text-danger">{{ net_total }}</b>
-                {% else %}
-                  <b class="text-muted">0</b>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-
-          {% if rows %}
-            <div class="flex-grow-1" style="overflow-y:auto; border:1px solid #dee2e6; border-radius:6px;">
-              <table class="table table-bordered table-sm mb-0" style="table-layout: fixed;">
-                <colgroup>
-                  <col style="width: 140px;">
-                  <col style="width: 80px;">
-                  <col style="width: 70px;">
-                  <col style="width: 110px;">
-                  <col style="width: 160px;">
-                  <col style="width: 110px;">
-                  <col style="width: 150px;">
-                  <col style="width: 130px;">
-                </colgroup>
-                <thead style="position: sticky; top: 0; background: #f8f9fa; z-index: 5;">
-                  <tr>
-                    <th>Created At</th>
-                    <th>Type</th>
-                    <th>Qty</th>
-                    <th>Unit Price</th>
-                    <th>Ref Type</th>
-                    <th>Ref No</th>
-                    <th class="remark-col">Remark</th>
-                    <th>Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for r in rows %}
-                    {% with m=r.obj %}
-                    <tr class="{% if m.movement_type == 'IN' %}table-success{% else %}table-danger{% endif %}">
-                      <td>{{ m.created_at|date:"Y-m-d H:i" }}</td>
-                      <td>
-                        {% if m.movement_type == 'IN' %}
-                          <span class="badge badge-success">IN</span>
-                        {% else %}
-                          <span class="badge badge-danger">OUT</span>
-                        {% endif %}
-                      </td>
-                      <td>{{ m.quantity }}</td>
-                      <td>MMK {{ m.unit_price|intcomma }}</td>
-                      <td>{{ m.get_ref_type_display|default:"-" }}</td>
-                      <td>{{ m.ref_no|default:"-" }}</td>
-                      <td class="remark-col">{{ m.remark|default:"-" }}</td>
-                      <td>
-                        <small class="text-muted">before:</small> {{ r.balance_before }}
-                        <br>
-                        <small class="text-muted">after:</small> <b>{{ r.balance_after }}</b>
-                      </td>
-                    </tr>
-                    {% endwith %}
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-
-            {% if movements.has_other_pages %}
-              <nav class="mt-3">
-                <ul class="pagination justify-content-center mb-0">
-                  {% if movements.has_previous %}
-                    <li class="page-item">
-                      <a class="page-link" href="?page={{ movements.previous_page_number }}">Previous</a>
-                    </li>
-                  {% else %}
-                    <li class="page-item disabled"><span class="page-link">Previous</span></li>
-                  {% endif %}
-
-                  {% for num in movements.paginator.page_range %}
-                    {% if movements.number == num %}
-                      <li class="page-item active"><span class="page-link">{{ num }}</span></li>
-                    {% else %}
-                      <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
-                    {% endif %}
-                  {% endfor %}
-
-                  {% if movements.has_next %}
-                    <li class="page-item">
-                      <a class="page-link" href="?page={{ movements.next_page_number }}">Next</a>
-                    </li>
-                  {% else %}
-                    <li class="page-item disabled"><span class="page-link">Next</span></li>
-                  {% endif %}
-                </ul>
-              </nav>
-            {% endif %}
-
-          {% else %}
-            <p class="text-muted mb-0">No movement records yet.</p>
-          {% endif %}
-
-        </div>
-      </div>
+    <div class="col-md-8">
+    <div class="card p-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      
+      <span class="text-muted">Total Records: {{ movements.paginator.count }}</span>
     </div>
+
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm text-center align-middle">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>IN (Order/Return)</th>
+            <th>Out</th>
+            <th>Type of Sale</th>
+            <th>Type of Action</th>
+            <th>Ref Type</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <td>{{ row.obj.created_at|date:"Y-m-d H:i" }}</td>
+              <td>{% if row.obj.movement_type == "IN" %}{{ row.obj.quantity }}{% else %}-{% endif %}</td>
+              <td>{% if row.obj.movement_type == "OUT" %}{{ row.obj.quantity }}{% else %}-{% endif %}</td>
+              <td>{{ row.sale_type_label|default:"-" }}</td>
+              <td>{{ row.obj.get_movement_type_display }}</td>
+              <td>{{ row.obj.get_ref_type_display|default:"-" }}</td>
+              <td>{{ row.balance_after }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-muted">No movement records found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
   </div>
 </div>
 {% endblock %}

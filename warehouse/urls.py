@@ -8,4 +8,7 @@ urlpatterns = [
     path('products/<str:sku>/print/', views.print_qr, name='warehouse_print_qr'),
     path('scan/<str:sku>/', views.scan, name='warehouse_scan'),
     path('movements/', views.movement_list, name='warehouse_movements'),
+    path('retail-partitions/', views.retail_partition_list, name='warehouse_retail_partition_list'),
+    path('retail-partitions/create/', views.retail_partition_create, name='warehouse_retail_partition_create'),
+    path('retail-partitions/<int:partition_id>/', views.retail_partition_detail, name='warehouse_retail_partition_detail'),
 ]
