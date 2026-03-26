@@ -1,4 +1,3 @@
-
 """
 Django settings for chuefamily project.
 
@@ -13,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 from django.contrib.messages import constants as messages
+import dj_database_url
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -121,33 +121,42 @@ if USE_SQLITE:
         }
     }
 else:
-    _db_password = os.getenv("DB_PASSWORD", "")
-    if not _db_password:
-        raise RuntimeError(
-            "DB_PASSWORD is not set. For local dev you can set USE_SQLITE=True, "
-            "or set DB_PASSWORD (and other DB_* vars) to use Postgres."
-        )
+    import dj_database_url
 
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.getenv("DB_NAME", "db_nqljjh84al5c"),
-            "USER": os.getenv("DB_USER", "db_nqljjh84al5c"),
-            "PASSWORD": _db_password,
-            "HOST": os.getenv("DB_HOST", "up-de-fra1-postgresql-1.db.run-on-seenode.com"),
-            "PORT": os.getenv("DB_PORT", "11550"),
-            "OPTIONS": {
-                # Many managed Postgres providers require SSL; override locally if needed.
-                "sslmode": os.getenv("DB_SSLMODE", "require"),
-                "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),
-                "keepalives": 1,
-                "keepalives_idle": int(os.getenv("DB_KEEPALIVES_IDLE", "30")),
-                "keepalives_interval": int(os.getenv("DB_KEEPALIVES_INTERVAL", "10")),
-                "keepalives_count": int(os.getenv("DB_KEEPALIVES_COUNT", "5")),
-            },
-            "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "0")),
+    # Prefer DATABASE_URL if provided (common in cloud platforms)
+    database_url = os.getenv("DATABASE_URL")
+
+    if database_url:
+        DATABASES = {
+            "default": dj_database_url.parse(
+                database_url,
+                conn_max_age=int(os.getenv("DB_CONN_MAX_AGE", "0")),
+                ssl_require=os.getenv("DB_SSLMODE", "require") == "require",
+            )
         }
-    }
+    else:
+        _db_password = os.getenv("DB_PASSWORD", "")
+        if not _db_password:
+            raise RuntimeError(
+                "DB_PASSWORD is not set. For local dev you can set USE_SQLITE=True, "
+                "or set DB_PASSWORD (and other DB_* vars) to use Postgres."
+            )
+
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": os.getenv("DB_NAME", "db_nqljjh84al5c"),
+                "USER": os.getenv("DB_USER", "db_nqljjh84al5c"),
+                "PASSWORD": _db_password,
+                "HOST": os.getenv("DB_HOST", "up-de-fra1-postgresql-1.db.run-on-seenode.com"),
+                "PORT": os.getenv("DB_PORT", "11550"),
+                "OPTIONS": {
+                    "sslmode": os.getenv("DB_SSLMODE", "require"),
+                    "connect_timeout": int(os.getenv("DB_CONNECT_TIMEOUT", "10")),
+                },
+                "CONN_MAX_AGE": int(os.getenv("DB_CONN_MAX_AGE", "0")),
+            }
+        }
 
 
 
