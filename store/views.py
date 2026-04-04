@@ -2,8 +2,7 @@ from django.shortcuts import render, get_object_or_404
 from django.core.paginator import Paginator
 from category.models import Category
 from .models import Product, Variation
-from django.db.models import Q
-from django.db.models import Min, Max
+from django.db.models import Q, Min, Max
 
 def store(request, category_slug=None):
     # Base queryset
@@ -24,19 +23,34 @@ def store(request, category_slug=None):
         ).distinct()
 
     # Dynamic sizes (always available)
+    size_manager = getattr(Variation.objects, 'sizes', None)
+    if callable(size_manager):
+        sizes_qs = size_manager()
+    else:
+        sizes_qs = Variation.objects.filter(
+            variation_category__iexact='size',
+            is_active=True,
+        )
+
     sizes = (
-        Variation.objects.sizes()
+        sizes_qs
         .filter(product__in=products)
         .values_list('variation_value', flat=True)
         .distinct()
         .order_by('variation_value')
     )
+
     # price filter from DB
-    price_stats = products.aggregate(min_price=Min('price'), max_price=Max('price'))
-    db_min_price = price_stats['min_price']
-    db_max_price = price_stats['max_price']
-    # Build 5 dynamic ranges
-    price_ranges = _build_price_ranges(db_min_price, db_max_price, buckets=5)
+    try:
+        price_stats = products.aggregate(min_price=Min('price'), max_price=Max('price'))
+        db_min_price = price_stats['min_price']
+        db_max_price = price_stats['max_price']
+        # Build 5 dynamic ranges
+        price_ranges = _build_price_ranges(db_min_price, db_max_price, buckets=5)
+    except Exception:
+        db_min_price = None
+        db_max_price = None
+        price_ranges = []
     # from browser request
     min_price = request.GET.get('min_price')
     max_price = request.GET.get('max_price')
@@ -115,7 +129,7 @@ def product_detail(request, category_slug, product_slug):
     /store/<category_slug>/<product_slug>/
     """
     category = get_object_or_404(Category, slug=category_slug)
-    product = get_object_or_404(Product, slug=product_slug)
+    product = get_object_or_404(Product, slug=product_slug, category=category)
 
     context = {
         'single_product': product,
@@ -132,20 +146,28 @@ def search(request):
     product_qs = Product.objects.filter(is_available=True)
 
     if keyword:
-        # Add more fields here if your Product model has them (description, brand, etc.)
         product_qs = product_qs.filter(
             Q(product_name__icontains=keyword) |
             Q(description__icontains=keyword)
         ).order_by('-created_at')
+    else:
+        product_qs = product_qs.order_by('-created_at')
 
-        paginator = Paginator(product_qs, 6)
-        page = request.GET.get('page')
-        paged_products = paginator.get_page(page)
+    paginator = Paginator(product_qs, 6)
+    page = request.GET.get('page')
+    paged_products = paginator.get_page(page)
 
-        context = {
-            'products': paged_products,
-            'product_count': product_qs.count(),
-        }
-        return render(request, 'store/store.html', context)
-    
+    context = {
+        'products': paged_products,
+        'product_count': product_qs.count(),
+        'keyword': keyword,
+        'sizes': [],
+        'selected_sizes': [],
+        'min_price': None,
+        'max_price': None,
+        'db_min_price': None,
+        'db_max_price': None,
+        'price_ranges': [],
+    }
+    return render(request, 'store/store.html', context)
 
