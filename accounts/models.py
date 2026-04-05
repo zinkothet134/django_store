@@ -46,5 +46,8 @@ class Account(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username", "first_name", "last_name"]
 
+    def is_warehouse_staff(self):
+        return self.groups.filter(name__iexact='is warehouse staff').exists()
+
     def __str__(self):
         return self.email

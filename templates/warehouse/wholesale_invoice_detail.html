@@ -1,0 +1,407 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-4 gap-3">
+        <div>
+            <h2 class="fw-bold mb-1">{{ invoice.invoice_no }}</h2>
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                {% if invoice.status == 'DRAFT' %}
+                    <span class="badge bg-warning text-dark rounded-pill px-3 py-2">Draft</span>
+                {% elif invoice.status == 'CONFIRMED' %}
+                    <span class="badge bg-success rounded-pill px-3 py-2">Confirmed</span>
+                {% else %}
+                    <span class="badge bg-secondary rounded-pill px-3 py-2">Cancelled</span>
+                {% endif %}
+                <span class="text-muted">Created at {{ invoice.created_at }}</span>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap justify-content-end">
+    <a href="{% url 'warehouse_wholesale_invoice_list' %}" class="btn btn-outline-secondary rounded-pill px-4">Back</a>
+
+    {% if invoice.status == 'CONFIRMED' %}
+        <a href="{% url 'warehouse_wholesale_invoice_print' invoice.id %}" target="_blank" class="btn btn-dark rounded-pill px-4">
+            Print Invoice
+        </a>
+    {% endif %}
+
+    {% if invoice.status == 'DRAFT' %}
+        <form method="post" action="{% url 'warehouse_wholesale_invoice_confirm' invoice.id %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success rounded-pill px-4">
+                Confirm Invoice
+            </button>
+        </form>
+    {% endif %}
+    </div>
+    </div>
+
+    {% if error %}
+        <div class="alert alert-danger rounded-4">{{ error }}</div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">Invoice Information</h5>
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="form_type" value="details">
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Customer Name</label>
+                            <input type="text" name="customer_name" class="form-control rounded-3" value="{{ detail_form_values.customer_name }}" {% if invoice.status != 'DRAFT' %}readonly{% endif %}>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Customer Phone</label>
+                            <input type="text" name="customer_phone" class="form-control rounded-3" value="{{ detail_form_values.customer_phone }}" {% if invoice.status != 'DRAFT' %}readonly{% endif %}>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Invoice Date</label>
+                            <input type="date" name="invoice_date" class="form-control rounded-3" value="{{ detail_form_values.invoice_date }}" {% if invoice.status != 'DRAFT' %}readonly{% endif %}>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Customer Address</label>
+                            <textarea name="customer_address" rows="3" class="form-control rounded-3" {% if invoice.status != 'DRAFT' %}readonly{% endif %}>{{ detail_form_values.customer_address }}</textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Payment Method</label>
+                            <select name="payment_method" class="form-select rounded-3" {% if invoice.status != 'DRAFT' %}disabled{% endif %}>
+                                <option value="">Select payment method</option>
+                                {% for code, label in payment_method_choices %}
+                                    <option value="{{ code }}" {% if detail_form_values.payment_method == code %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Payment Status</label>
+                            <select name="payment_status" class="form-select rounded-3" {% if invoice.status != 'DRAFT' %}disabled{% endif %}>
+                                {% for code, label in payment_status_choices %}
+                                    <option value="{{ code }}" {% if detail_form_values.payment_status == code %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Payment Note</label>
+                            <input type="text" name="payment_note" class="form-control rounded-3" value="{{ detail_form_values.payment_note }}" {% if invoice.status != 'DRAFT' %}readonly{% endif %}>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Discount Amount</label>
+                            <input type="number" name="discount_amount" class="form-control rounded-3" value="{{ detail_form_values.discount_amount }}" min="0" {% if invoice.status != 'DRAFT' %}readonly{% endif %}>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Remark</label>
+                            <textarea name="remark" rows="3" class="form-control rounded-3" {% if invoice.status != 'DRAFT' %}readonly{% endif %}>{{ detail_form_values.remark }}</textarea>
+                        </div>
+
+                        {% if invoice.status == 'DRAFT' %}
+                            <button type="submit" class="btn btn-dark rounded-pill px-4">
+                                Update Invoice
+                            </button>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">Scan Product QR / SKU</h5>
+
+                    {% if invoice.status == 'DRAFT' %}
+                        <form method="post" action="{% url 'warehouse_wholesale_invoice_scan_item' invoice.id %}" id="camera-scan-form">
+                            {% csrf_token %}
+
+                            <div class="alert alert-info rounded-4 small mb-3">
+                                Use your phone camera to scan the product QR code. If camera scanning is unavailable, you can still type the SKU manually.
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Phone Camera Scan</label>
+                                <div class="border rounded-4 overflow-hidden bg-dark position-relative">
+                                    <video id="qr-video" class="w-100 d-none" playsinline autoplay muted></video>
+                                    <div id="qr-video-placeholder" class="text-center text-muted p-4 bg-light">
+                                        <div class="fw-semibold mb-2">Camera preview will appear here</div>
+                                        <div class="small">Tap “Use Phone Camera” and allow camera access.</div>
+                                    </div>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2 mt-3">
+                                    <button type="button" id="start-camera-btn" class="btn btn-dark rounded-pill px-4">Use Phone Camera</button>
+                                    <button type="button" id="stop-camera-btn" class="btn btn-outline-secondary rounded-pill px-4 d-none">Stop Camera</button>
+                                </div>
+                                <div id="camera-scan-status" class="form-text mt-2">Best on mobile devices with a rear camera.</div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Scanned Code</label>
+                                <input
+                                    type="text"
+                                    name="scanned_code"
+                                    id="scanned-code-input"
+                                    class="form-control form-control-lg rounded-3"
+                                    value="{{ scan_value }}"
+                                    placeholder="QR result will appear here, or type SKU manually"
+                                    autofocus
+                                >
+                                {% if messages %}
+                                    {% for message in messages %}
+                                        {% if 'No product found' in message|stringformat:"s" %}
+                                            <div class="text-danger small mt-2">
+                                                No product found for the entered SKU. Please check and try again.
+                                            </div>
+                                        {% elif 'Please scan or enter a product QR/SKU' in message|stringformat:"s" %}
+                                            <div class="text-danger small mt-2">
+                                                SKU should not be blank.
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+
+<script>
+  // Prevent empty submit (better UX)
+  document.getElementById('camera-scan-form')?.addEventListener('submit', function(e) {
+    const input = document.getElementById('scanned-code-input');
+    if (!input || !input.value.trim()) {
+      e.preventDefault();
+      alert('SKU should not be blank.');
+      input.focus();
+    }
+  });
+</script>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold">Quantity</label>
+                                <input type="number" name="quantity" class="form-control rounded-3" value="1" min="1">
+                            </div>
+
+                            <button type="submit" class="btn btn-primary rounded-pill px-4 w-100">
+                                Add Product
+                            </button>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-light border rounded-4 mb-0">
+                            This invoice is no longer editable.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">Invoice Items</h5>
+
+                    {% if items %}
+                        <div class="table-responsive">
+                            <table class="table align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>SKU</th>
+                                        <th style="width: 120px;">Qty</th>
+                                        <th style="width: 140px;">Price</th>
+                                        <th>Line Total</th>
+                                        {% if invoice.status == 'DRAFT' %}
+                                            <th class="text-end">Action</th>
+                                        {% endif %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in items %}
+                                        <tr>
+                                            <td>
+                                                <div class="fw-semibold">{{ item.product.product_name }}</div>
+                                            </td>
+                                            <td>{{ item.product.sku }}</td>
+                                            <td>
+                                                {% if invoice.status == 'DRAFT' %}
+                                                    <form method="post" action="{% url 'warehouse_wholesale_invoice_update_item' invoice.id item.id %}" class="d-flex gap-2">
+                                                        {% csrf_token %}
+                                                        <input type="number" name="quantity" class="form-control form-control-sm rounded-3" value="{{ item.quantity }}" min="1">
+                                            </td>
+                                            <td>
+                                                        <input type="number" name="unit_price" class="form-control form-control-sm rounded-3" value="{{ item.unit_price }}" min="0">
+                                            </td>
+                                            <td class="fw-semibold">{{ item.line_total }}</td>
+                                            <td class="text-end">
+                                                        <div class="d-flex justify-content-end gap-2">
+                                                            <button type="submit" class="btn btn-sm btn-outline-primary rounded-pill px-3">Save</button>
+                                                    </form>
+                                                            <form method="post" action="{% url 'warehouse_wholesale_invoice_delete_item' invoice.id item.id %}">
+                                                                {% csrf_token %}
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3">Delete</button>
+                                                            </form>
+                                                        </div>
+                                            </td>
+                                                {% else %}
+                                                    {{ item.quantity }}
+                                            </td>
+                                            <td>{{ item.unit_price }}</td>
+                                            <td class="fw-semibold">{{ item.line_total }}</td>
+                                                {% endif %}
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <h6 class="fw-bold mb-2">No items yet</h6>
+                            <p class="text-muted mb-0">Scan a product QR code or enter SKU to add items.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-3">Invoice Summary</h5>
+
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">Subtotal</span>
+                        <span class="fw-semibold">{{ invoice.subtotal }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-2 border-bottom">
+                        <span class="text-muted">Discount</span>
+                        <span class="fw-semibold">{{ invoice.discount_amount }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between py-3">
+                        <span class="fw-bold fs-5">Total</span>
+                        <span class="fw-bold fs-5">{{ invoice.total_amount }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+<script>
+  (function () {
+    const video = document.getElementById('qr-video');
+    const placeholder = document.getElementById('qr-video-placeholder');
+    const startBtn = document.getElementById('start-camera-btn');
+    const stopBtn = document.getElementById('stop-camera-btn');
+    const statusText = document.getElementById('camera-scan-status');
+    const scannedCodeInput = document.getElementById('scanned-code-input');
+
+    if (!video || !startBtn || !scannedCodeInput) {
+      return;
+    }
+
+    let stream = null;
+    let animationFrameId = null;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+
+    function setStatus(message) {
+      if (statusText) {
+        statusText.textContent = message;
+      }
+    }
+
+    function stopCamera() {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+      }
+
+      video.pause();
+      video.srcObject = null;
+      video.classList.add('d-none');
+
+      if (placeholder) {
+        placeholder.classList.remove('d-none');
+      }
+
+      if (stopBtn) {
+        stopBtn.classList.add('d-none');
+      }
+    }
+
+    function scanFrame() {
+      if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        animationFrameId = requestAnimationFrame(scanFrame);
+        return;
+      }
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = window.jsQR ? jsQR(imageData.data, imageData.width, imageData.height) : null;
+
+      if (code && code.data) {
+        scannedCodeInput.value = code.data;
+        setStatus('QR detected successfully. Review the code and tap Add Product.');
+        stopCamera();
+        return;
+      }
+
+      animationFrameId = requestAnimationFrame(scanFrame);
+    }
+
+    async function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus('This browser does not support camera scanning. Please type the SKU manually.');
+        return;
+      }
+
+      try {
+        stopCamera();
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' }
+          },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        await video.play();
+        video.classList.remove('d-none');
+
+        if (placeholder) {
+          placeholder.classList.add('d-none');
+        }
+
+        if (stopBtn) {
+          stopBtn.classList.remove('d-none');
+        }
+
+        setStatus('Camera is live. Point it at the product QR code.');
+        animationFrameId = requestAnimationFrame(scanFrame);
+      } catch (error) {
+        setStatus('Unable to access the camera. Please allow permission or type the SKU manually.');
+      }
+    }
+
+    startBtn.addEventListener('click', startCamera);
+
+    if (stopBtn) {
+      stopBtn.addEventListener('click', function () {
+        stopCamera();
+        setStatus('Camera stopped. You can type the SKU manually if needed.');
+      });
+    }
+
+    window.addEventListener('beforeunload', stopCamera);
+  })();
+</script>
+{% endblock %}

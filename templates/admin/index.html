@@ -1,0 +1,22 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+<div style="margin-bottom:24px;">
+  <div style="
+    background:linear-gradient(135deg,#111827,#2563eb);
+    color:#fff;
+    border-radius:20px;
+    padding:24px;
+    box-shadow:0 10px 30px rgba(37,99,235,.18);
+  ">
+    <div style="font-size:28px; font-weight:800; margin-bottom:8px;">
+      CHUE Family Back Office
+    </div>
+    <div style="font-size:14px; opacity:.9;">
+      Manage products, stock, invoices, retail partition, suppliers, users, and permissions.
+    </div>
+  </div>
+</div>
+
+{{ block.super }}
+{% endblock %}

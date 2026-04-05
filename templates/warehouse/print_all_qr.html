@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Print QR Codes</title>
+
+    <style>
+        @page {
+            size: 58mm auto;
+            margin: 0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #ffffff;
+            color: #000000;
+        }
+
+        body {
+            width: 58mm;
+            margin: 0 auto;
+        }
+
+        .print-toolbar {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+            background: #f8f8f8;
+        }
+
+        .print-btn {
+            padding: 8px 12px;
+            border: 1px solid #222;
+            background: #222;
+            color: #fff;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .page-title {
+            text-align: center;
+            font-size: 14px;
+            font-weight: 700;
+            margin: 10px 0 6px;
+        }
+
+        .qr-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            width: 100%;
+        }
+
+        .qr-card {
+            width: 100%;
+            padding: 4mm 3mm;
+            border-bottom: 1px dashed #999;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            text-align: center;
+        }
+
+        .qr-inner {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 38mm;
+        }
+
+        .qr-box {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 2mm;
+        }
+
+        .qr-name {
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-top: 1mm;
+            word-break: break-word;
+        }
+
+        .qr-sku {
+            font-size: 10px;
+            color: #444;
+            line-height: 1.2;
+            word-break: break-word;
+            margin-top: 1mm;
+        }
+
+        @media print {
+            .print-toolbar,
+            .page-title {
+                display: none;
+            }
+
+            body {
+                width: 58mm;
+            }
+
+            .qr-card:last-child {
+                border-bottom: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="print-toolbar">
+    <button class="print-btn" onclick="window.print()">Print Labels</button>
+</div>
+
+<h2 class="page-title">Product QR Labels</h2>
+
+<div class="qr-grid">
+    {% for product in products %}
+        <div class="qr-card">
+            <div class="qr-inner">
+                <div class="qr-box" data-qr="{{ product.sku }}"></div>
+                <div class="qr-name">{{ product.product_name }}</div>
+                <div class="qr-sku">{{ product.sku }}</div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+    document.querySelectorAll('.qr-box').forEach(function(el) {
+        new QRCode(el, {
+            text: el.dataset.qr,
+            width: 96,
+            height: 96
+        });
+    });
+</script>
+
+</body>
+</html>

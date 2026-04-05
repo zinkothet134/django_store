@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.core.mail import EmailMessage
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import Group
 from django.template.loader import render_to_string
 
 from .forms import RegistrationForm, LoginForm
@@ -40,7 +41,12 @@ def register(request):
             )
 
             user.is_active = False
+            user.is_staff = False
             user.save()
+
+            warehouse_group = Group.objects.filter(name__iexact='is warehouse staff').first()
+            if warehouse_group:
+                user.groups.remove(warehouse_group)
 
             # messages.success(request, 'Registration successful. Please log in.')
             # build activation link
@@ -145,12 +151,17 @@ def login_view(request):
             if user is not None:
                 auth_login(request, user)
 
-                # redirect back to the page user wanted
+                # redirect back to the page user wanted only for warehouse staff/admin users
                 next_url = request.GET.get('next')
-                if next_url:
+                if next_url and (user.is_superuser or user.is_staff or user.is_warehouse_staff()):
                     return redirect(next_url)
 
-                return redirect('home')
+                # default newly registered users can browse products only
+                if user.is_superuser or user.is_staff or user.is_warehouse_staff():
+                    return redirect('warehouse_dashboard')
+
+                messages.info(request, 'Your account is active. You can browse the product list. Warehouse access is granted only after admin approval.')
+                return redirect('store')
             else:
                 messages.error(request, 'Invalid email or password.')
 

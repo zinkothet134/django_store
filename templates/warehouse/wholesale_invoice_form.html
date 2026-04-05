@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 980px;">
+    <div class="mb-4">
+        <h2 class="fw-bold mb-1">Create Wholesale Invoice</h2>
+        <p class="text-muted mb-0">Create a draft invoice first, then scan products into it.</p>
+    </div>
+
+    {% if error %}
+        <div class="alert alert-danger rounded-4">{{ error }}</div>
+    {% endif %}
+
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-4 p-md-5">
+            <form method="post">
+                {% csrf_token %}
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Customer Name</label>
+                        <input type="text" name="customer_name" class="form-control rounded-3" value="{{ form_values.customer_name }}" required>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Customer Phone</label>
+                        <input type="text" name="customer_phone" class="form-control rounded-3" value="{{ form_values.customer_phone }}">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Invoice Date</label>
+                        <input type="date" name="invoice_date" class="form-control rounded-3" value="{{ form_values.invoice_date }}">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Discount Amount</label>
+                        <input type="number" name="discount_amount" class="form-control rounded-3" value="{{ form_values.discount_amount }}" min="0">
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Payment Method</label>
+                        <select name="payment_method" class="form-select rounded-3">
+                            <option value="">Select payment method</option>
+                            {% for code, label in payment_method_choices %}
+                                <option value="{{ code }}" {% if form_values.payment_method == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Payment Status</label>
+                        <select name="payment_status" class="form-select rounded-3">
+                            {% for code, label in payment_status_choices %}
+                                <option value="{{ code }}" {% if form_values.payment_status == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Customer Address</label>
+                        <textarea name="customer_address" rows="3" class="form-control rounded-3">{{ form_values.customer_address }}</textarea>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Payment Note</label>
+                        <input type="text" name="payment_note" class="form-control rounded-3" value="{{ form_values.payment_note }}">
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Remark</label>
+                        <textarea name="remark" rows="3" class="form-control rounded-3">{{ form_values.remark }}</textarea>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-column flex-sm-row gap-2 justify-content-end mt-4">
+                    <a href="{% url 'warehouse_wholesale_invoice_list' %}" class="btn btn-outline-secondary rounded-pill px-4">
+                        Cancel
+                    </a>
+                    <button type="submit" class="btn btn-dark rounded-pill px-4">
+                        Create Draft Invoice
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

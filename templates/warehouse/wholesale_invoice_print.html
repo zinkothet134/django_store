@@ -1,0 +1,355 @@
+{% load humanize static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ invoice.invoice_no }} - Invoice</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 6mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff;
+      font-family: Arial, sans-serif;
+      color: #222;
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .print-page {
+      width: 190mm;
+      max-width: 190mm;
+      margin: 0 auto;
+      background: #fff;
+      padding: 0;
+    }
+
+    .print-toolbar {
+      display: flex;
+      justify-content: flex-end;
+      margin: 10px 0 12px;
+    }
+
+    .print-btn {
+      border: none;
+      background: #111;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .invoice-shell {
+      border: 1px solid #b88a12;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .invoice-header {
+      background: linear-gradient(90deg, #b88a12 0%, #f3de87 50%, #b88a12 100%);
+      padding: 16px 18px 12px;
+    }
+
+    .header-center {
+      text-align: center;
+    }
+
+    .logo {
+      width: 56px;
+      height: 56px;
+      object-fit: contain;
+      border-radius: 50%;
+      background: #fff;
+      margin-bottom: 6px;
+    }
+
+    .shop-name {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #0b57b7;
+      line-height: 1.1;
+      margin-bottom: 2px;
+    }
+
+    .shop-subtitle {
+      font-size: 0.93rem;
+      font-weight: 700;
+      color: #222;
+      line-height: 1.2;
+    }
+
+    .header-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+
+    .meta-left,
+    .meta-right {
+      width: 49%;
+    }
+
+    .meta-row {
+      margin-bottom: 5px;
+      word-break: break-word;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead tr {
+      background: linear-gradient(90deg, #b88a12 0%, #f3de87 50%, #b88a12 100%);
+    }
+
+    th, td {
+      border: 1px solid #666;
+      padding: 6px 6px;
+      font-size: 12px;
+      vertical-align: top;
+    }
+
+    th {
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .sku-text {
+      color: #6c757d;
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    .total-box {
+      padding: 8px 16px 8px;
+      text-align: right;
+      font-size: 1.08rem;
+      font-weight: 800;
+    }
+
+    .bottom-section {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 18px;
+      align-items: flex-end;
+    }
+
+    .payment-box,
+    .sign-box {
+      width: 48%;
+    }
+
+    .payment-title {
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .payment-row {
+      margin-bottom: 4px;
+    }
+
+    .payment-note {
+      margin-top: 8px;
+      color: #666;
+      font-size: 11px;
+    }
+
+    .signature-line {
+      margin-top: 40px;
+      border-top: 1px solid #666;
+      text-align: center;
+      padding-top: 6px;
+      min-width: 220px;
+      margin-left: auto;
+      font-size: 12px;
+    }
+
+    .invoice-footer {
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid #c9c9c9;
+      text-align: center;
+      font-size: 11.5px;
+      line-height: 1.4;
+    }
+
+    .footer-grid {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: nowrap;
+    }
+
+    .footer-item {
+      flex: 1 1 0;
+      word-break: break-word;
+    }
+
+    @media print {
+      html, body {
+        width: 210mm;
+        height: 297mm;
+        background: #fff !important;
+      }
+
+      .print-page {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+
+      .print-toolbar {
+        display: none !important;
+      }
+
+      .invoice-shell,
+      .bottom-section,
+      .invoice-footer,
+      table,
+      tr,
+      td,
+      th {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-page">
+    <div class="print-toolbar">
+      <button class="print-btn" onclick="window.print()">Print</button>
+    </div>
+
+    <div class="invoice-shell">
+      <div class="invoice-header">
+        <div class="header-center">
+          <img src="{% static 'images/chuebusiness_logo.png' %}" alt="Business Logo" class="logo">
+          <div class="shop-name">ကိုသက် မခိုင်</div>
+          <div class="shop-subtitle">ဖိနပ်မျိုးစုံ လက်လီလက်ကား ရောင်းဝယ်ရေး</div>
+        </div>
+
+        <div class="header-meta">
+          <div class="meta-left">
+            <div class="meta-row"><strong>ဖောက်သည်အမည်:</strong> {{ invoice.customer_name }}</div>
+            <div class="meta-row"><strong>ဖုန်းနံပါတ်:</strong> {{ invoice.customer_phone|default:"-" }}</div>
+            <div class="meta-row"><strong>လိပ်စာ:</strong> {{ invoice.customer_address|default:"-" }}</div>
+          </div>
+          <div class="meta-right text-right">
+            <div class="meta-row"><strong>ရက်စွဲ:</strong> {{ invoice.invoice_date }}</div>
+            <div class="meta-row"><strong>ဘောက်ချာအမှတ်:</strong> {{ invoice.invoice_no }}</div>
+            <div class="meta-row"><strong>ငွေပေးချေမှု:</strong> {{ invoice.get_payment_status_display }}</div>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 52px;">စဉ်</th>
+            <th>ပစ္စည်းအမျိုးအမည်</th>
+            <th style="width: 80px;">အရေအတွက်</th>
+            <th style="width: 105px;">ဈေးနှုန်း</th>
+            <th style="width: 120px;">စုစုပေါင်း</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td class="text-center">{{ forloop.counter }}</td>
+            <td>
+              {{ item.product.product_name }}
+              {% if item.product.sku %}
+                <div class="sku-text">SKU: {{ item.product.sku }}</div>
+              {% endif %}
+            </td>
+            <td class="text-center">{{ item.quantity }}</td>
+            <td class="text-right">{{ item.unit_price|intcomma }}</td>
+            <td class="text-right">{{ item.line_total|intcomma }}</td>
+          </tr>
+          {% endfor %}
+          <tr>
+            <td colspan="4" class="text-right"><strong>စုစုပေါင်း</strong></td>
+            <td class="text-right">{{ invoice.subtotal|intcomma }}</td>
+          </tr>
+          <tr>
+            <td colspan="4" class="text-right"><strong>လျှော့ဈေး</strong></td>
+            <td class="text-right">{{ invoice.discount_amount|intcomma }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="total-box">
+        ပေးရန်စုစုပေါင်း: {{ invoice.total_amount|intcomma }}
+      </div>
+    </div>
+
+    <div class="bottom-section">
+      <div class="payment-box">
+        <div class="payment-title">ငွေပေးချေမှု</div>
+        <div class="payment-row">
+          ငွေသားဖြင့် {% if invoice.payment_method == 'CASH' %}☑{% else %}☐{% endif %}
+        </div>
+        <div class="payment-row">
+          Kpay / AYApay {% if invoice.payment_method == 'KBZPAY' %}☑{% else %}☐{% endif %}
+        </div>
+        <div class="payment-row">
+          KBZ / AYA Banking {% if invoice.payment_method == 'BANK' %}☑{% else %}☐{% endif %}
+        </div>
+        {% if invoice.payment_note %}
+          <div class="payment-note">မှတ်ချက်: {{ invoice.payment_note }}</div>
+        {% endif %}
+      </div>
+
+      <div class="sign-box">
+        <div class="signature-line">ကိုသက် မခိုင် (ဆိုင်ရှင်)</div>
+      </div>
+    </div>
+
+    <div class="invoice-footer">
+      <div class="footer-grid">
+        <div class="footer-item">
+          <strong>ဖုန်း</strong><br>
+          09 256412616
+        </div>
+        <div class="footer-item">
+          <strong>Email</strong><br>
+          info.chuefamily@gmail.com
+        </div>
+        <div class="footer-item">
+          <strong>လိပ်စာ</strong><br>
+          53 street, Between 128 and 129 Street, Pyigyitagon Tsp, Mandalay
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,7 +1,16 @@
-from django.shortcuts import render, get_object_or_404,redirect
+from django.shortcuts import render, get_object_or_404, redirect
+from django.db import transaction
 from django.db.models import Sum, Q, Case, When, IntegerField, F, ExpressionWrapper
 from django.db.models.functions import TruncDate
-from store.models import Product, StockMovement, WholesaleMovement, RetailPartition, RetailPartitionMovement
+from store.models import (
+    Product,
+    StockMovement,
+    WholesaleMovement,
+    RetailPartition,
+    RetailPartitionMovement,
+    WholesaleInvoice,
+    WholesaleInvoiceItem,
+)
 from category.models import Category
 from .permissions import in_group
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -12,179 +21,12 @@ from django.utils import timezone
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 from itertools import chain
+from urllib.parse import urlencode
 # Create your views here.
 
 def is_warehouse_staff(user):
     return user.is_superuser or user.is_staff or user.groups.filter(name='Warehouse Staff').exists()
 
-# @login_required
-# @user_passes_test(is_warehouse_staff)
-# def dashboard(request):
-#     products_qs = Product.objects.all().order_by('-created_at')
-#     total_products = products_qs.count()
-#     total_stock = products_qs.aggregate(total=Sum('stock'))['total'] or 0
-
-#     keyword = (request.GET.get('keyword') or '').strip()
-#     if keyword:
-#         products_qs = products_qs.filter(
-#             Q(product_name__icontains=keyword) |
-#             Q(sku__icontains=keyword) |
-#             Q(category__category_name__icontains=keyword)
-#         )
-
-#     stock_filter = (request.GET.get('stock') or '').strip()
-#     if stock_filter.lower() == 'none':
-#         stock_filter = ''
-#     if stock_filter == 'in':
-#         products_qs = products_qs.filter(stock__gt=0)
-#     elif stock_filter == 'out':
-#         products_qs = products_qs.filter(stock=0)
-
-#     category_id = (request.GET.get('category') or '').strip()
-#     if category_id.lower() == 'none':
-#         category_id = ''
-#     if category_id.isdigit():
-#         products_qs = products_qs.filter(category_id=int(category_id))
-
-#     start_str = (request.GET.get('start') or '').strip()
-#     end_str = (request.GET.get('end') or '').strip()
-
-#     today = timezone.localdate()
-#     start_date = parse_date(start_str) if start_str else (today - timedelta(days=14))
-#     end_date = parse_date(end_str) if end_str else today
-
-#     if start_date and end_date and start_date > end_date:
-#         start_date, end_date = end_date, start_date
-
-#     # Retail charts must reflect actual sales from retail partitions, not stock transfers.
-#     retail_sales_range = RetailPartitionMovement.objects.filter(
-#         created_at__date__gte=start_date,
-#         created_at__date__lte=end_date,
-#         action_type=RetailPartitionMovement.SALE,
-#     )
-#     retail_transfer_range = RetailPartitionMovement.objects.filter(
-#         created_at__date__gte=start_date,
-#         created_at__date__lte=end_date,
-#         action_type=RetailPartitionMovement.TRANSFER,
-#     )
-#     retail_return_range = RetailPartitionMovement.objects.filter(
-#         created_at__date__gte=start_date,
-#         created_at__date__lte=end_date,
-#         action_type=RetailPartitionMovement.RETURN,
-#     )
-
-#     wholesale_range = WholesaleMovement.objects.filter(
-#         created_at__date__gte=start_date,
-#         created_at__date__lte=end_date,
-#     )
-
-#     retail_top_out = (
-#         retail_sales_range
-#         .values('product__product_name')
-#         .annotate(qty_out=Sum('quantity'))
-#         .order_by('-qty_out')[:10]
-#     )
-#     retail_bar_labels = [r['product__product_name'] for r in retail_top_out]
-#     retail_bar_qty = [r['qty_out'] or 0 for r in retail_top_out]
-
-#     wholesale_top_out = (
-#         wholesale_range
-#         .filter(movement_type=WholesaleMovement.OUT)
-#         .values('product__product_name')
-#         .annotate(qty_out=Sum('quantity'))
-#         .order_by('-qty_out')[:10]
-#     )
-#     wholesale_bar_labels = [r['product__product_name'] for r in wholesale_top_out]
-#     wholesale_bar_qty = [r['qty_out'] or 0 for r in wholesale_top_out]
-
-#     retail_daily = (
-#         retail_sales_range
-#         .annotate(day=TruncDate('created_at'))
-#         .values('day')
-#         .annotate(
-#             qty_out=Sum('quantity'),
-#             income=Sum(
-#                 ExpressionWrapper(
-#                     F('quantity') * F('unit_price'),
-#                     output_field=IntegerField(),
-#                 )
-#             ),
-#         )
-#         .order_by('day')
-#     )
-#     retail_line_labels = [d['day'].strftime('%Y-%m-%d') for d in retail_daily]
-#     retail_line_qty = [d['qty_out'] or 0 for d in retail_daily]
-#     retail_line_income = [d['income'] or 0 for d in retail_daily]
-
-#     wholesale_daily = (
-#         wholesale_range
-#         .filter(movement_type=WholesaleMovement.OUT)
-#         .annotate(day=TruncDate('created_at'))
-#         .values('day')
-#         .annotate(
-#             qty_out=Sum('quantity'),
-#             income=Sum(
-#                 ExpressionWrapper(
-#                     F('quantity') * F('unit_price'),
-#                     output_field=IntegerField(),
-#                 )
-#             ),
-#         )
-#         .order_by('day')
-#     )
-#     wholesale_line_labels = [d['day'].strftime('%Y-%m-%d') for d in wholesale_daily]
-#     wholesale_line_qty = [d['qty_out'] or 0 for d in wholesale_daily]
-#     wholesale_line_income = [d['income'] or 0 for d in wholesale_daily]
-
-#     retail_total_in = retail_transfer_range.aggregate(total=Sum('quantity'))['total'] or 0
-#     retail_total_out = retail_sales_range.aggregate(total=Sum('quantity'))['total'] or 0
-#     retail_return_total = retail_return_range.aggregate(total=Sum('quantity'))['total'] or 0
-#     retail_net_total = retail_total_in - retail_total_out - retail_return_total
-
-#     wholesale_total_in = wholesale_range.filter(movement_type=WholesaleMovement.IN).aggregate(total=Sum('quantity'))['total'] or 0
-#     wholesale_total_out = wholesale_range.filter(movement_type=WholesaleMovement.OUT).aggregate(total=Sum('quantity'))['total'] or 0
-#     wholesale_net_total = wholesale_total_in - wholesale_total_out
-
-#     retail_paginator = Paginator(products_qs, 10)
-#     retail_page_number = request.GET.get('retail_page')
-#     retail_products = retail_paginator.get_page(retail_page_number)
-
-#     wholesale_paginator = Paginator(products_qs, 10)
-#     wholesale_page_number = request.GET.get('wholesale_page')
-#     wholesale_products = wholesale_paginator.get_page(wholesale_page_number)
-
-#     categories = Category.objects.all().order_by('category_name')
-
-#     context = {
-#         'total_products': total_products,
-#         'total_stock': total_stock,
-#         'keyword': keyword,
-#         'stock_filter': stock_filter,
-#         'selected_category': category_id,
-#         'categories': categories,
-#         'start': start_date.strftime('%Y-%m-%d') if start_date else '',
-#         'end': end_date.strftime('%Y-%m-%d') if end_date else '',
-#         'retail_products': retail_products,
-#         'wholesale_products': wholesale_products,
-#         'retail_total_in': retail_total_in,
-#         'retail_total_out': retail_total_out,
-#         'retail_return_total': retail_return_total,
-#         'retail_net_total': retail_net_total,
-#         'wholesale_total_in': wholesale_total_in,
-#         'wholesale_total_out': wholesale_total_out,
-#         'wholesale_net_total': wholesale_net_total,
-#         'retail_bar_labels': retail_bar_labels,
-#         'retail_bar_qty': retail_bar_qty,
-#         'retail_line_labels': retail_line_labels,
-#         'retail_line_qty': retail_line_qty,
-#         'retail_line_income': retail_line_income,
-#         'wholesale_bar_labels': wholesale_bar_labels,
-#         'wholesale_bar_qty': wholesale_bar_qty,
-#         'wholesale_line_labels': wholesale_line_labels,
-#         'wholesale_line_qty': wholesale_line_qty,
-#         'wholesale_line_income': wholesale_line_income,
-#     }
-#     return render(request, 'warehouse/dashboard.html', context)
 @login_required
 @user_passes_test(is_warehouse_staff)
 def dashboard(request):
@@ -770,6 +612,448 @@ def print_qr(request, sku):
 
 
 
+@login_required
+@user_passes_test(is_warehouse_staff)
+def print_all_qr(request):
+    products = Product.objects.all().order_by("product_name", "sku")
+    context = {
+        'products': products,
+    }
+    return render(request, 'warehouse/print_all_qr.html', context)
+
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def wholesale_invoice_list(request):
+    invoices = WholesaleInvoice.objects.select_related('created_by').prefetch_related('items').all()
+
+    status = (request.GET.get('status') or '').strip().upper()
+    keyword = (request.GET.get('keyword') or '').strip()
+
+    if status in {WholesaleInvoice.DRAFT, WholesaleInvoice.CONFIRMED, WholesaleInvoice.CANCELLED}:
+        invoices = invoices.filter(status=status)
+    else:
+        status = ''
+
+    if keyword:
+        invoices = invoices.filter(
+            Q(invoice_no__icontains=keyword) |
+            Q(customer_name__icontains=keyword) |
+            Q(customer_phone__icontains=keyword)
+        )
+
+    paginator = Paginator(invoices.order_by('-created_at', '-id'), 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'invoices': page_obj,
+        'selected_status': status,
+        'keyword': keyword,
+        'status_choices': WholesaleInvoice.STATUS_CHOICES,
+    }
+    return render(request, 'warehouse/wholesale_invoice_list.html', context)
+
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def wholesale_invoice_create(request):
+    error = None
+
+    form_values = {
+        'customer_name': '',
+        'customer_phone': '',
+        'customer_address': '',
+        'invoice_date': timezone.localdate().strftime('%Y-%m-%d'),
+        'payment_method': '',
+        'payment_status': WholesaleInvoice.UNPAID,
+        'payment_note': '',
+        'discount_amount': '0',
+        'remark': '',
+    }
+
+    if request.method == 'POST':
+        customer_name = (request.POST.get('customer_name') or '').strip()
+        customer_phone = (request.POST.get('customer_phone') or '').strip()
+        customer_address = (request.POST.get('customer_address') or '').strip()
+        invoice_date_raw = (request.POST.get('invoice_date') or '').strip()
+        payment_method = (request.POST.get('payment_method') or '').strip()
+        payment_status = (request.POST.get('payment_status') or WholesaleInvoice.UNPAID).strip()
+        payment_note = (request.POST.get('payment_note') or '').strip()
+        discount_raw = (request.POST.get('discount_amount') or '0').strip()
+        remark = (request.POST.get('remark') or '').strip()
+
+        form_values = {
+            'customer_name': customer_name,
+            'customer_phone': customer_phone,
+            'customer_address': customer_address,
+            'invoice_date': invoice_date_raw or timezone.localdate().strftime('%Y-%m-%d'),
+            'payment_method': payment_method,
+            'payment_status': payment_status,
+            'payment_note': payment_note,
+            'discount_amount': discount_raw,
+            'remark': remark,
+        }
+
+        invoice_date = parse_date(invoice_date_raw) if invoice_date_raw else timezone.localdate()
+
+        try:
+            discount_amount = int(discount_raw or 0)
+        except (TypeError, ValueError):
+            discount_amount = -1
+
+        valid_payment_methods = {code for code, _ in WholesaleInvoice.PAYMENT_METHOD_CHOICES}
+        valid_payment_statuses = {code for code, _ in WholesaleInvoice.PAYMENT_STATUS_CHOICES}
+
+        if not customer_name:
+            error = 'Customer name is required.'
+        elif invoice_date is None:
+            error = 'Invalid invoice date.'
+        elif payment_method and payment_method not in valid_payment_methods:
+            error = 'Invalid payment method.'
+        elif payment_status not in valid_payment_statuses:
+            error = 'Invalid payment status.'
+        elif discount_amount < 0:
+            error = 'Discount amount cannot be negative.'
+        else:
+            invoice = WholesaleInvoice.objects.create(
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                customer_address=customer_address,
+                invoice_date=invoice_date,
+                payment_method=payment_method,
+                payment_status=payment_status,
+                payment_note=payment_note,
+                discount_amount=discount_amount,
+                remark=remark,
+                created_by=request.user,
+            )
+            invoice.recalculate_totals()
+            messages.success(request, f'Wholesale invoice {invoice.invoice_no} created successfully.')
+            return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    context = {
+        'error': error,
+        'form_values': form_values,
+        'payment_method_choices': WholesaleInvoice.PAYMENT_METHOD_CHOICES,
+        'payment_status_choices': WholesaleInvoice.PAYMENT_STATUS_CHOICES,
+    }
+    return render(request, 'warehouse/wholesale_invoice_form.html', context)
+
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def wholesale_invoice_detail(request, invoice_id):
+    invoice = get_object_or_404(
+        WholesaleInvoice.objects.prefetch_related('items__product').select_related('created_by'),
+        id=invoice_id,
+    )
+    error = None
+
+    detail_form_values = {
+        'customer_name': invoice.customer_name,
+        'customer_phone': invoice.customer_phone,
+        'customer_address': invoice.customer_address,
+        'invoice_date': invoice.invoice_date.strftime('%Y-%m-%d') if invoice.invoice_date else '',
+        'payment_method': invoice.payment_method,
+        'payment_status': invoice.payment_status,
+        'payment_note': invoice.payment_note,
+        'discount_amount': str(invoice.discount_amount or 0),
+        'remark': invoice.remark,
+    }
+
+    scan_value = ''
+
+    if request.method == 'POST':
+        form_type = (request.POST.get('form_type') or 'details').strip()
+
+        if form_type == 'details':
+            customer_name = (request.POST.get('customer_name') or '').strip()
+            customer_phone = (request.POST.get('customer_phone') or '').strip()
+            customer_address = (request.POST.get('customer_address') or '').strip()
+            invoice_date_raw = (request.POST.get('invoice_date') or '').strip()
+            payment_method = (request.POST.get('payment_method') or '').strip()
+            payment_status = (request.POST.get('payment_status') or WholesaleInvoice.UNPAID).strip()
+            payment_note = (request.POST.get('payment_note') or '').strip()
+            discount_raw = (request.POST.get('discount_amount') or '0').strip()
+            remark = (request.POST.get('remark') or '').strip()
+
+            detail_form_values = {
+                'customer_name': customer_name,
+                'customer_phone': customer_phone,
+                'customer_address': customer_address,
+                'invoice_date': invoice_date_raw,
+                'payment_method': payment_method,
+                'payment_status': payment_status,
+                'payment_note': payment_note,
+                'discount_amount': discount_raw,
+                'remark': remark,
+            }
+
+            invoice_date = parse_date(invoice_date_raw) if invoice_date_raw else None
+
+            try:
+                discount_amount = int(discount_raw or 0)
+            except (TypeError, ValueError):
+                discount_amount = -1
+
+            valid_payment_methods = {code for code, _ in WholesaleInvoice.PAYMENT_METHOD_CHOICES}
+            valid_payment_statuses = {code for code, _ in WholesaleInvoice.PAYMENT_STATUS_CHOICES}
+
+            if invoice.status != WholesaleInvoice.DRAFT:
+                error = 'Only draft invoices can be edited.'
+            elif not customer_name:
+                error = 'Customer name is required.'
+            elif invoice_date is None:
+                error = 'Invalid invoice date.'
+            elif payment_method and payment_method not in valid_payment_methods:
+                error = 'Invalid payment method.'
+            elif payment_status not in valid_payment_statuses:
+                error = 'Invalid payment status.'
+            elif discount_amount < 0:
+                error = 'Discount amount cannot be negative.'
+            else:
+                invoice.customer_name = customer_name
+                invoice.customer_phone = customer_phone
+                invoice.customer_address = customer_address
+                invoice.invoice_date = invoice_date
+                invoice.payment_method = payment_method
+                invoice.payment_status = payment_status
+                invoice.payment_note = payment_note
+                invoice.discount_amount = discount_amount
+                invoice.remark = remark
+                invoice.save(update_fields=[
+                    'customer_name',
+                    'customer_phone',
+                    'customer_address',
+                    'invoice_date',
+                    'payment_method',
+                    'payment_status',
+                    'payment_note',
+                    'discount_amount',
+                    'remark',
+                ])
+                invoice.recalculate_totals()
+                messages.success(request, 'Wholesale invoice updated successfully.')
+                return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    items = invoice.items.select_related('product').all().order_by('id')
+    invoice.recalculate_totals(save=False)
+
+    context = {
+        'invoice': invoice,
+        'items': items,
+        'error': error,
+        'detail_form_values': detail_form_values,
+        'scan_value': scan_value,
+        'payment_method_choices': WholesaleInvoice.PAYMENT_METHOD_CHOICES,
+        'payment_status_choices': WholesaleInvoice.PAYMENT_STATUS_CHOICES,
+    }
+    return render(request, 'warehouse/wholesale_invoice_detail.html', context)
+
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def wholesale_invoice_scan_item(request, invoice_id):
+    invoice = get_object_or_404(WholesaleInvoice, id=invoice_id)
+
+    if request.method != 'POST':
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    if invoice.status != WholesaleInvoice.DRAFT:
+        messages.error(request, 'Only draft invoices can accept scanned products.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    scanned_code = (request.POST.get('scanned_code') or '').strip()
+    quantity_raw = (request.POST.get('quantity') or '1').strip()
+
+    try:
+        quantity = int(quantity_raw or 1)
+    except (TypeError, ValueError):
+        quantity = 0
+
+    if not scanned_code:
+        messages.error(request, 'Please scan or enter a product QR/SKU.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    if quantity <= 0:
+        messages.error(request, 'Quantity must be greater than 0.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    sku = scanned_code
+    if '|' in scanned_code:
+        parts = scanned_code.split('|', 1)
+        sku = parts[1].strip()
+
+    product = Product.objects.filter(sku=sku).first()
+    if not product:
+        messages.error(request, f'No product found for scanned code: {scanned_code}')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    item, created = WholesaleInvoiceItem.objects.get_or_create(
+        invoice=invoice,
+        product=product,
+        defaults={
+            'quantity': quantity,
+            'unit_price': product.wholesale_price or 0,
+        },
+    )
+
+    if not created:
+        item.quantity += quantity
+        item.save(update_fields=['quantity', 'unit_price', 'line_total'])
+
+    invoice.recalculate_totals()
+
+    messages.success(
+        request,
+        f'{product.product_name} added to {invoice.invoice_no}.' if created else f'{product.product_name} quantity updated in {invoice.invoice_no}.',
+    )
+    return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def wholesale_invoice_update_item(request, invoice_id, item_id):
+    invoice = get_object_or_404(WholesaleInvoice, id=invoice_id)
+    item = get_object_or_404(WholesaleInvoiceItem, id=item_id, invoice=invoice)
+
+    if request.method != 'POST':
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    if invoice.status != WholesaleInvoice.DRAFT:
+        messages.error(request, 'Only draft invoices can be edited.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    quantity_raw = (request.POST.get('quantity') or '').strip()
+    unit_price_raw = (request.POST.get('unit_price') or '').strip()
+
+    try:
+        quantity = int(quantity_raw)
+    except (TypeError, ValueError):
+        quantity = 0
+
+    try:
+        unit_price = int(unit_price_raw)
+    except (TypeError, ValueError):
+        unit_price = -1
+
+    if quantity <= 0:
+        messages.error(request, 'Quantity must be greater than 0.')
+    elif unit_price < 0:
+        messages.error(request, 'Unit price cannot be negative.')
+    else:
+        item.quantity = quantity
+        item.unit_price = unit_price
+        item.save(update_fields=['quantity', 'unit_price', 'line_total'])
+        invoice.recalculate_totals()
+        messages.success(request, 'Invoice item updated successfully.')
+
+    return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def wholesale_invoice_delete_item(request, invoice_id, item_id):
+    invoice = get_object_or_404(WholesaleInvoice, id=invoice_id)
+    item = get_object_or_404(WholesaleInvoiceItem, id=item_id, invoice=invoice)
+
+    if request.method != 'POST':
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    if invoice.status != WholesaleInvoice.DRAFT:
+        messages.error(request, 'Only draft invoices can be edited.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    product_name = item.product.product_name
+    item.delete()
+    invoice.recalculate_totals()
+    messages.success(request, f'{product_name} removed from invoice.')
+    return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+
+@login_required
+@user_passes_test(is_warehouse_staff)
+def wholesale_invoice_confirm(request, invoice_id):
+    invoice = get_object_or_404(WholesaleInvoice.objects.prefetch_related('items__product'), id=invoice_id)
+
+    if request.method != 'POST':
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    if invoice.status != WholesaleInvoice.DRAFT:
+        messages.error(request, 'This invoice is already processed.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    items = list(invoice.items.select_related('product').all())
+    if not items:
+        messages.error(request, 'Cannot confirm an invoice without items.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    insufficient_products = []
+    for item in items:
+        if item.quantity > item.product.stock:
+            insufficient_products.append(
+                f'{item.product.product_name} (stock {item.product.stock}, requested {item.quantity})'
+            )
+
+    if insufficient_products:
+        messages.error(request, 'Not enough stock for: ' + ', '.join(insufficient_products))
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    with transaction.atomic():
+        for item in items:
+            product = Product.objects.select_for_update().get(id=item.product_id)
+            if item.quantity > product.stock:
+                messages.error(
+                    request,
+                    f'Not enough stock for {product.product_name}. Current stock is {product.stock}.',
+                )
+                return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+            product.stock -= item.quantity
+            product.save(update_fields=['stock'])
+
+            WholesaleMovement.objects.create(
+                product=product,
+                invoice=invoice,
+                movement_type=WholesaleMovement.OUT,
+                unit_price=item.unit_price,
+                quantity=item.quantity,
+                ref_type='CUS_INV',
+                ref_no=invoice.invoice_no,
+                remark=invoice.remark or f'Wholesale invoice {invoice.invoice_no}',
+                created_by=request.user,
+            )
+
+        invoice.status = WholesaleInvoice.CONFIRMED
+        invoice.save(update_fields=['status'])
+        invoice.recalculate_totals()
+
+    messages.success(request, f'Wholesale invoice {invoice.invoice_no} confirmed successfully.')
+    return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+
+# wholesale_invoice_print
+@login_required
+@user_passes_test(is_warehouse_staff)
+def wholesale_invoice_print(request, invoice_id):
+    invoice = get_object_or_404(
+        WholesaleInvoice.objects.prefetch_related('items__product').select_related('created_by'),
+        id=invoice_id,
+    )
+
+    if invoice.status != WholesaleInvoice.CONFIRMED:
+        messages.error(request, 'Only confirmed invoices can be printed.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    items = invoice.items.select_related('product').all().order_by('id')
+    invoice.recalculate_totals(save=False)
+
+    context = {
+        'invoice': invoice,
+        'items': items,
+    }
+    return render(request, 'warehouse/wholesale_invoice_print.html', context)
 
 @login_required
 @user_passes_test(is_warehouse_staff)

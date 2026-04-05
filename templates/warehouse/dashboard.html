@@ -4,28 +4,88 @@
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">Warehouse Dashboard</h2>
-    <div class="d-flex gap-2">
+    <div class="d-flex flex-wrap gap-2">
       <a href="{% url 'warehouse_products' %}" class="btn btn-primary">View Products</a>
-      <a href="{% url 'warehouse_retail_partition_list' %}" class="btn btn-outline-success">
-        <i class="fa fa-layer-group"></i> Retail Partition
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+      <a href="{% url 'warehouse_wholesale_invoice_create' %}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 dashboard-action-card" style="transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; border-radius: 1rem; min-height: 100%;">
+          <div class="card-body p-4" style="min-height: 200px;">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <span class="badge bg-dark-subtle text-dark rounded-pill px-3 py-2">Wholesale</span>
+              <i class="fa fa-plus-circle fs-4 text-dark"></i>
+            </div>
+            <h5 class="mb-2 text-dark">Create Invoice</h5>
+            <p class="text-muted mb-0">Start a new wholesale invoice and add items by scanning QR or SKU.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+      <a href="{% url 'warehouse_wholesale_invoice_list' %}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 dashboard-action-card" style="transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; border-radius: 1rem; min-height: 100%;">
+          <div class="card-body p-4" style="min-height: 200px;">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <span class="badge bg-success-subtle text-success rounded-pill px-3 py-2">Records</span>
+              <i class="fa fa-file-invoice fs-4 text-success"></i>
+            </div>
+            <h5 class="mb-2 text-dark">Wholesale Invoices</h5>
+            <p class="text-muted mb-0">Open draft and confirmed wholesale invoices and manage invoice details.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+      <a href="{% url 'warehouse_print_all_qr' %}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 dashboard-action-card" style="transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; border-radius: 1rem; min-height: 100%;">
+          <div class="card-body p-4" style="min-height: 200px;">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <span class="badge bg-secondary-subtle text-secondary rounded-pill px-3 py-2">Labels</span>
+              <i class="fa fa-qrcode fs-4 text-secondary"></i>
+            </div>
+            <h5 class="mb-2 text-dark">Print QR Labels</h5>
+            <p class="text-muted mb-0">Print product QR labels for scanning and warehouse operations.</p>
+          </div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-md-6 col-xl-3">
+      <a href="{% url 'warehouse_retail_partition_list' %}" class="text-decoration-none">
+        <div class="card border-0 shadow-sm h-100 dashboard-action-card" style="transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; border-radius: 1rem; min-height: 100%;">
+          <div class="card-body p-4" style="min-height: 200px;">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <span class="badge bg-primary-subtle text-primary rounded-pill px-3 py-2">Retail</span>
+              <i class="fa fa-layer-group fs-4 text-primary"></i>
+            </div>
+            <h5 class="mb-2 text-dark">Retail Partition</h5>
+            <p class="text-muted mb-0">Transfer warehouse stock into retail partition stock and manage retail flow.</p>
+          </div>
+        </div>
       </a>
     </div>
   </div>
 
-  <div class="row mt-3">
-    <div class="col-md-6">
-      <div class="card p-3">
-        <h5>Total Products</h5>
-        <p class="display-6 mb-0">{{ total_products }}</p>
-      </div>
-    </div>
-    <div class="col-md-6">
-      <div class="card p-3">
-        <h5>Total Stock</h5>
-        <p class="display-6 mb-0">{{ total_stock|intcomma }}</p>
-      </div>
+  <div class="row mt-3 g-3">
+  <div class="col-md-6">
+    <div class="card p-4 text-center dashboard-stat-card" style="border-radius: 1rem; transition: transform 0.2s ease, box-shadow 0.2s ease;">
+      <div class="text-muted mb-2">Total Products</div>
+      <div class="display-5 fw-bold text-primary">{{ total_products }}</div>
     </div>
   </div>
+
+  <div class="col-md-6">
+    <div class="card p-4 text-center dashboard-stat-card" style="border-radius: 1rem; transition: transform 0.2s ease, box-shadow 0.2s ease;">
+      <div class="text-muted mb-2">Total Stock</div>
+      <div class="display-5 fw-bold text-success">{{ total_stock|intcomma }}</div>
+    </div>
+  </div>
+</div>
 
   <form method="get" class="card p-3 mt-4">
     <div class="row align-items-end g-2">
@@ -198,6 +258,33 @@
 {{ wholesale_line_labels|json_script:"wholesale-line-labels-data" }}
 {{ wholesale_line_qty|json_script:"wholesale-line-qty-data" }}
 {{ wholesale_line_income|json_script:"wholesale-line-income-data" }}
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.dashboard-action-card').forEach(function (card) {
+    card.addEventListener('mouseenter', function () {
+      card.style.transform = 'translateY(-4px)';
+      card.style.boxShadow = '0 1rem 2rem rgba(0, 0, 0, 0.08)';
+    });
+    card.addEventListener('mouseleave', function () {
+      card.style.transform = 'translateY(0)';
+      card.style.boxShadow = '';
+    });
+  });
+
+  document.querySelectorAll('.dashboard-stat-card').forEach(function (card) {
+    card.addEventListener('mouseenter', function () {
+      card.style.transform = 'translateY(-6px)';
+      card.style.boxShadow = '0 1rem 2rem rgba(0, 0, 0, 0.1)';
+    });
+    card.addEventListener('mouseleave', function () {
+      card.style.transform = 'translateY(0)';
+      card.style.boxShadow = '';
+    });
+  });
+});
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>

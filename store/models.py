@@ -260,6 +260,13 @@ class WholesaleMovement(models.Model):
     )
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    invoice = models.ForeignKey(
+        'WholesaleInvoice',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='movements'
+    )
     movement_type = models.CharField(max_length=3, choices=MOVEMENT_TYPES)
     unit_price = models.IntegerField(default=0)
     quantity = models.PositiveIntegerField()
@@ -433,3 +440,114 @@ class RetailPartitionMovement(models.Model):
 
     def __str__(self):
         return f"{self.partition} {self.product} {self.action_type} {self.quantity}"
+    
+
+class WholesaleInvoice(models.Model):
+    DRAFT = 'DRAFT'
+    CONFIRMED = 'CONFIRMED'
+    CANCELLED = 'CANCELLED'
+
+    STATUS_CHOICES = [
+        (DRAFT, 'Draft'),
+        (CONFIRMED, 'Confirmed'),
+        (CANCELLED, 'Cancelled'),
+    ]
+
+    CASH = 'CASH'
+    BANK = 'BANK'
+    KBZPAY = 'KBZPAY'
+    CREDIT = 'CREDIT'
+
+    PAYMENT_METHOD_CHOICES = [
+        (CASH, 'Cash'),
+        (BANK, 'Bank Transfer'),
+        (KBZPAY, 'KBZPay'),
+        (CREDIT, 'Credit'),
+    ]
+
+    UNPAID = 'UNPAID'
+    PARTIAL = 'PARTIAL'
+    PAID = 'PAID'
+
+    PAYMENT_STATUS_CHOICES = [
+        (UNPAID, 'Unpaid'),
+        (PARTIAL, 'Partial'),
+        (PAID, 'Paid'),
+    ]
+
+    invoice_no = models.CharField(max_length=30, unique=True, blank=True)
+    customer_name = models.CharField(max_length=150)
+    customer_phone = models.CharField(max_length=50, blank=True)
+    customer_address = models.TextField(blank=True)
+    invoice_date = models.DateField(default=timezone.localdate)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=DRAFT)
+
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, blank=True)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default=UNPAID)
+    payment_note = models.CharField(max_length=255, blank=True)
+
+    subtotal = models.IntegerField(default=0)
+    discount_amount = models.IntegerField(default=0)
+    total_amount = models.IntegerField(default=0)
+
+    remark = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(default=timezone.now, blank=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return self.invoice_no or f'Wholesale Invoice {self.pk}'
+
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        if is_new and not self.invoice_no:
+            self.invoice_no = f"WS-{str(self.pk).zfill(5)}"
+            super().save(update_fields=['invoice_no'])
+
+    def recalculate_totals(self, save=True):
+        subtotal = self.items.aggregate(total=Sum('line_total'))['total'] or 0
+        discount = self.discount_amount or 0
+        total_amount = max(subtotal - discount, 0)
+
+        self.subtotal = subtotal
+        self.total_amount = total_amount
+
+        if save and self.pk:
+            self.save(update_fields=['subtotal', 'total_amount'])
+
+        return {
+            'subtotal': self.subtotal,
+            'discount_amount': discount,
+            'total_amount': self.total_amount,
+        }
+
+    
+class WholesaleInvoiceItem(models.Model):
+    invoice = models.ForeignKey(WholesaleInvoice, related_name='items', on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.PROTECT)
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.IntegerField(default=0)
+    line_total = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ('invoice', 'product')
+        ordering = ['id']
+
+    def save(self, *args, **kwargs):
+        self.unit_price = self.unit_price or self.product.wholesale_price or 0
+        self.line_total = (self.quantity or 0) * (self.unit_price or 0)
+        super().save(*args, **kwargs)
+        if self.invoice_id:
+            self.invoice.recalculate_totals()
+
+    def delete(self, *args, **kwargs):
+        invoice = self.invoice
+        super().delete(*args, **kwargs)
+        if invoice:
+            invoice.recalculate_totals()
+
+    def __str__(self):
+        return f"{self.invoice.invoice_no} - {self.product.product_name}"
