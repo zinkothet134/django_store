@@ -5,8 +5,18 @@ from .models import Product, Variation
 from django.db.models import Q, Min, Max
 
 def store(request, category_slug=None):
+    category = None
+
     # Base queryset
-    products = Product.objects.filter(is_available=True)
+    products = Product.objects.filter(
+        is_available=True,
+        category__isnull=False,
+        slug__isnull=False,
+        category__slug__isnull=False,
+    ).exclude(
+        slug='',
+        category__slug='',
+    )
 
     # Category filter
     if category_slug:
@@ -19,7 +29,7 @@ def store(request, category_slug=None):
         products = products.filter(
             variation__variation_category='size',
             variation__variation_value__in=selected_sizes,
-            variation__is_active=True
+            variation__is_active=True,
         ).distinct()
 
     # Dynamic sizes (always available)
@@ -40,24 +50,32 @@ def store(request, category_slug=None):
         .order_by('variation_value')
     )
 
-    # price filter from DB
+    # Price filter from DB
     try:
         price_stats = products.aggregate(min_price=Min('price'), max_price=Max('price'))
         db_min_price = price_stats['min_price']
         db_max_price = price_stats['max_price']
-        # Build 5 dynamic ranges
         price_ranges = _build_price_ranges(db_min_price, db_max_price, buckets=5)
     except Exception:
         db_min_price = None
         db_max_price = None
         price_ranges = []
-    # from browser request
+
+    # From browser request
     min_price = request.GET.get('min_price')
     max_price = request.GET.get('max_price')
+
     if min_price:
-        products = products.filter(price__gte=min_price)
+        try:
+            products = products.filter(price__gte=int(min_price))
+        except (TypeError, ValueError):
+            min_price = None
+
     if max_price:
-        products = products.filter(price__lte=max_price)
+        try:
+            products = products.filter(price__lte=int(max_price))
+        except (TypeError, ValueError):
+            max_price = None
 
     # Order newest first
     products = products.order_by('-created_at')
@@ -70,13 +88,11 @@ def store(request, category_slug=None):
     context = {
         'products': paged_products,
         'product_count': products.count(),
+        'category': category,
         'sizes': sizes,
         'selected_sizes': selected_sizes,
-        #price filter values 
-        'min_price': min_price, 
+        'min_price': min_price,
         'max_price': max_price,
-
-        #dynamic range info
         'db_min_price': db_min_price,
         'db_max_price': db_max_price,
         'price_ranges': price_ranges,
@@ -143,7 +159,15 @@ def search(request):
       /store/search/?keyword=xxx
     """
     keyword = request.GET.get('keyword', '').strip()
-    product_qs = Product.objects.filter(is_available=True)
+    product_qs = Product.objects.filter(
+        is_available=True,
+        category__isnull=False,
+        slug__isnull=False,
+        category__slug__isnull=False,
+    ).exclude(
+        slug='',
+        category__slug='',
+    )
 
     if keyword:
         product_qs = product_qs.filter(
@@ -161,6 +185,7 @@ def search(request):
         'products': paged_products,
         'product_count': product_qs.count(),
         'keyword': keyword,
+        'category': None,
         'sizes': [],
         'selected_sizes': [],
         'min_price': None,
@@ -170,4 +195,3 @@ def search(request):
         'price_ranges': [],
     }
     return render(request, 'store/store.html', context)
-
