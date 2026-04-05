@@ -885,9 +885,21 @@ def wholesale_invoice_scan_item(request, invoice_id):
         parts = scanned_code.split('|', 1)
         sku = parts[1].strip()
 
+    # product = Product.objects.filter(sku=sku).first()
+    # if not product:
+    #     messages.error(request, f'No product found for scanned code: {scanned_code}')
+    #     return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
     product = Product.objects.filter(sku=sku).first()
     if not product:
-        messages.error(request, f'No product found for scanned code: {scanned_code}')
+        messages.error(request, f'No valid product found for scanned code: {scanned_code}')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    if not product.is_available:
+        messages.error(request, f'{product.product_name} is not a valid active product for invoice use.')
+        return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+
+    if product.stock <= 0:
+        messages.error(request, f'{product.product_name} is out of stock and cannot be added.')
         return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
 
     item, created = WholesaleInvoiceItem.objects.get_or_create(
@@ -900,8 +912,23 @@ def wholesale_invoice_scan_item(request, invoice_id):
     )
 
     if not created:
-        item.quantity += quantity
+        new_quantity = item.quantity + quantity
+        if new_quantity > product.stock:
+            messages.error(
+                request,
+                f'Not enough stock for {product.product_name}. Available stock is {product.stock}.',
+            )
+            return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
+        item.quantity = new_quantity
         item.save(update_fields=['quantity', 'unit_price', 'line_total'])
+    else:
+        if quantity > product.stock:
+            messages.error(
+                request,
+                f'Not enough stock for {product.product_name}. Available stock is {product.stock}.',
+            )
+            item.delete()
+            return redirect('warehouse_wholesale_invoice_detail', invoice_id=invoice.id)
 
     invoice.recalculate_totals()
 

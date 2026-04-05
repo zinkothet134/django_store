@@ -155,13 +155,25 @@
                                 >
                                 {% if messages %}
                                     {% for message in messages %}
-                                        {% if 'No product found' in message|stringformat:"s" %}
+                                        {% if 'No valid product found' in message|stringformat:"s" or 'No product found' in message|stringformat:"s" %}
                                             <div class="text-danger small mt-2">
-                                                No product found for the entered SKU. Please check and try again.
+                                                No valid product found for the entered SKU. Please check and try again.
                                             </div>
                                         {% elif 'Please scan or enter a product QR/SKU' in message|stringformat:"s" %}
                                             <div class="text-danger small mt-2">
                                                 SKU should not be blank.
+                                            </div>
+                                        {% elif 'out of stock' in message|stringformat:"s" %}
+                                            <div class="text-danger small mt-2">
+                                                This product is out of stock and cannot be added to the invoice.
+                                            </div>
+                                        {% elif 'not a valid active product' in message|stringformat:"s" %}
+                                            <div class="text-danger small mt-2">
+                                                This product is not available for invoice use.
+                                            </div>
+                                        {% elif 'Not enough stock' in message|stringformat:"s" %}
+                                            <div class="text-danger small mt-2">
+                                                Requested quantity exceeds available stock.
                                             </div>
                                         {% endif %}
                                     {% endfor %}
