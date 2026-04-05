@@ -195,3 +195,6 @@ def search(request):
         'price_ranges': [],
     }
     return render(request, 'store/store.html', context)
+
+
+

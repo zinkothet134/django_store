@@ -20,21 +20,39 @@
 
 <header class="section-heading">
 	<a href="{% url 'store' %}" class="btn btn-outline-primary float-right">See all</a>
-	<h3 class="section-title">Popular products</h3>
+	<h3 class="section-title">Top Selling Products</h3>
+	<p class="text-muted mb-0">Products with the highest sold-out quantity.</p>
 </header><!-- sect-heading -->
 
 	
 <div class="row">
 	{% for product in products %}
-	<div class="col-md-3">
-		<div class="card card-product-grid">
-			<a href="{{ product.get_url}}" class="img-wrap"> <img src="{{product.images.url}}"> </a>
+	<div class="col-6 col-md-4 col-lg-3 mb-4">
+		<div class="card card-product-grid h-100">
+			<a href="{{ product.get_url }}" class="img-wrap">
+				{% if product.images %}
+					<img src="{{ product.images.url }}" alt="{{ product.product_name }}">
+				{% else %}
+					<div style="width:100%; height:220px; display:flex; align-items:center; justify-content:center; background:#f5f5f5;">
+						<span class="text-muted">No Image</span>
+					</div>
+				{% endif %}
+			</a>
 			<figcaption class="info-wrap">
-				<a href="{{ product.get_url}}" class="title">{{product.product_name}}</a>
-				<div class="price mt-1">${{product.price}}</div> <!-- price-wrap.// -->
+				<div class="mb-2">
+					<span class="badge badge-danger">Top Seller</span>
+				</div>
+				<a href="{{ product.get_url }}" class="title">{{ product.product_name }}</a>
+				<div class="price mt-1">${{ product.price }}</div>
 			</figcaption>
 		</div>
-	</div> <!-- col.// -->
+	</div>
+	{% empty %}
+	<div class="col-12">
+		<div class="alert alert-info mb-0">
+			No top selling products available yet.
+		</div>
+	</div>
 	{% endfor %}
 </div> <!-- row.// -->
 
@@ -46,8 +64,5 @@
 
 
 
-
-</body>
-</html>
 
 {% endblock %}
