@@ -5,8 +5,8 @@
 
     <style>
         @page {
-            size: 58mm auto;
-            margin: 0;
+            size: A4 portrait;
+            margin: 10mm;
         }
 
         * {
@@ -22,48 +22,56 @@
         }
 
         body {
-            width: 58mm;
             margin: 0 auto;
+            padding: 12px;
+            max-width: 190mm;
         }
 
         .print-toolbar {
-            padding: 10px;
+            padding: 10px 0 14px;
             text-align: center;
-            border-bottom: 1px solid #ddd;
-            background: #f8f8f8;
         }
 
         .print-btn {
-            padding: 8px 12px;
+            padding: 8px 14px;
             border: 1px solid #222;
             background: #222;
             color: #fff;
             cursor: pointer;
-            border-radius: 4px;
+            border-radius: 6px;
             font-size: 12px;
         }
 
         .page-title {
             text-align: center;
-            font-size: 14px;
+            font-size: 18px;
             font-weight: 700;
-            margin: 10px 0 6px;
+            margin: 0 0 12px;
+        }
+
+        .page-subtitle {
+            text-align: center;
+            font-size: 12px;
+            color: #555;
+            margin: 0 0 16px;
         }
 
         .qr-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 0;
-            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8mm 6mm;
+            align-items: start;
         }
 
         .qr-card {
             width: 100%;
+            border: 1px dashed #b5b5b5;
+            border-radius: 8px;
             padding: 4mm 3mm;
-            border-bottom: 1px dashed #999;
+            text-align: center;
             page-break-inside: avoid;
             break-inside: avoid;
-            text-align: center;
+            background: #fff;
         }
 
         .qr-inner {
@@ -71,18 +79,26 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            min-height: 38mm;
+            min-height: 46mm;
         }
 
         .qr-box {
             display: flex;
             justify-content: center;
             align-items: center;
+            width: 100%;
             margin-bottom: 2mm;
         }
 
+        .qr-box canvas,
+        .qr-box img {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
+
         .qr-name {
-            font-size: 11px;
+            font-size: 10.5px;
             font-weight: 700;
             line-height: 1.2;
             margin-top: 1mm;
@@ -90,7 +106,7 @@
         }
 
         .qr-sku {
-            font-size: 10px;
+            font-size: 9.5px;
             color: #444;
             line-height: 1.2;
             word-break: break-word;
@@ -98,17 +114,31 @@
         }
 
         @media print {
-            .print-toolbar,
-            .page-title {
-                display: none;
+            html, body {
+                background: #fff;
             }
 
             body {
-                width: 58mm;
+                width: auto;
+                max-width: none;
+                margin: 0;
+                padding: 0;
             }
 
-            .qr-card:last-child {
-                border-bottom: none;
+            .print-toolbar,
+            .page-title,
+            .page-subtitle {
+                display: none !important;
+            }
+
+            .qr-grid {
+                gap: 6mm 5mm;
+            }
+
+            .qr-card {
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                -webkit-column-break-inside: avoid;
             }
         }
     </style>
@@ -117,10 +147,11 @@
 <body>
 
 <div class="print-toolbar">
-    <button class="print-btn" onclick="window.print()">Print Labels</button>
+    <button class="print-btn" onclick="window.print()">Print A4 Labels</button>
 </div>
 
 <h2 class="page-title">Product QR Labels</h2>
+<p class="page-subtitle">A4 layout optimized to reduce paper waste and keep each QR label on a single page.</p>
 
 <div class="qr-grid">
     {% for product in products %}
@@ -139,8 +170,8 @@
     document.querySelectorAll('.qr-box').forEach(function(el) {
         new QRCode(el, {
             text: el.dataset.qr,
-            width: 96,
-            height: 96
+            width: 84,
+            height: 84
         });
     });
 </script>
